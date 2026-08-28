@@ -1,0 +1,18 @@
+{
+  "name": "isokit",
+  "version": "0.1.0",
+  "description": "Guarded generator for Azure-marketing-style isometric architecture diagrams, rendered as self-contained SVG",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node tests/pyfmt.ts && node tests/errors.ts && bash tests/check-golden.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -14,7 +14,7 @@ A **mermaid.live-style static web app** plus a **published spec written for AI a
 
 - **Human-authorable text format** — a semantic YAML (units, groups, flows, annotations; no coordinates in the common case). A human can edit it the way humans edit mermaid; AI makes it easier but is not required.
 - **Shareable by URL** — the diagram definition is deflate+base64 encoded in the URL *fragment* (never sent to a server), so the link is simultaneously the document, the render, and the share. No backend, no accounts, no storage.
-- **Static, in-browser rendering** — the Python renderer runs client-side via Pyodide/WASM. Hostable anywhere static files can live; nothing to install.
+- **Static, in-browser rendering** — the TypeScript renderer runs natively in the browser as a small JS bundle (no WASM, no Pyodide, instant load). Hostable anywhere static files can live; nothing to install.
 - **Published agent spec** — a single stable-URL document (llms.txt-style: format spec, invariants, few-shot exemplars, common failure modes) so any AI agent, pointed at one link, can author a valid diagram. Renderer errors are written as one turn in a conversation with an arbitrary LLM: precise, copyable, self-correction-ready.
 - **Agent rule:** agents output plain YAML only; the page does encode-to-URL. LLMs must never generate the base64 themselves (they hallucinate bytes).
 
@@ -30,7 +30,11 @@ Auto-placement pays off in **every** future, including the AI-only one (it colla
 
 Phase 1 — repo and package (done 2026-08-28):
 
-- Own repo, Apache-2.0, `src/isokit/` package layout, `pyproject.toml`, plain-python layout scripts in `layouts/`, output dir via `$ISOKIT_OUT` / `isokit.local`, grammar + rules in `STYLE.md`.
+- Own repo, Apache-2.0, plain layout scripts in `layouts/`, output dir via `$ISOKIT_OUT` / `isokit.local`, grammar + rules in `STYLE.md`.
+
+Phase 1.5 — TypeScript port (done 2026-08-28):
+
+- Ported the Python prototype 1:1 to `src/isokit.ts` (Node ≥ 23.6 native TS, zero runtime deps), verified **byte-identical** against Python-generated golden masters (`tests/golden/`, permanent regression fixtures) plus guard-behavior tests (`tests/errors.ts`), then deleted the Python. Prototype recoverable from git history at commit `2f46dd2` (`src/isokit/__init__.py`). Rationale: the port was measured small (680 lines, pure stdlib, monospace font = trivial text metrics) and *replacing* rather than duplicating preserves the single-codebase ratchet; done before Phase 2 so auto-placement is written once, in the language the web future needs.
 
 Phase 2 — auto-placement, incremental (next; each step useful on its own):
 
@@ -48,7 +52,7 @@ Phase 3 — the semantic format (only after Phase 2 makes it honest):
 
 Phase 4 — the web app + spec (the theory; commit only if the signals below hold):
 
-- Static page: YAML editor, live Pyodide render, download SVG, share-link generation (deflate+base64 URL fragment). Verify Pyodide load weight is acceptable (~10 MB first load, cached after).
+- Static page: YAML editor, live in-browser render (the renderer is already browser-compatible JS after the TS port — only `out`/`write` are Node-specific), download SVG, share-link generation (deflate+base64 URL fragment).
 - Machine-readable render report (errors, warnings, fallbacks) designed to be pasted back to whatever agent authored the YAML — the substitute for the agent having eyes.
 - The published agent spec document, derived from `STYLE.md` + the YAML schema.
 - Hosting decision: public static host vs. work-internal — decide before the repo/app goes public.
@@ -62,6 +66,6 @@ Phase 4 — the web app + spec (the theory; commit only if the signals below hol
 ## Explicitly rejected / deferred
 
 - **Coordinate-heavy YAML now** — rejected: freezes a schema no human wants to author and no weak agent can produce reliably.
-- **JS/TypeScript port** — deferred indefinitely: forks every ratcheted rule into two codebases; only worth it if this becomes a real multi-user product needing a native Obsidian plugin or instant web rendering without WASM.
-- **Obsidian plugin** — deferred: the current model (SVGs generated externally, embedded via `![[...]]`) already delivers most of the value; a code-block plugin could later reuse the Phase 4 Pyodide bundle.
+- **JS/TypeScript port** — ~~deferred indefinitely~~ **reversed and completed 2026-08-28**: the original objection ("forks every ratcheted rule into two codebases") assumed dual maintenance; porting-and-replacing keeps one codebase while unlocking instant no-WASM web rendering and a trivial Obsidian plugin path. The Python implementation was deleted after byte-identical verification, not kept in parallel.
+- **Obsidian plugin** — deferred: the current model (SVGs generated externally, embedded via `![[...]]`) already delivers most of the value; a code-block plugin can now reuse the TS renderer directly (no WASM bundle needed).
 - **Agents generating share-URLs directly** — rejected: agents emit YAML text only; encoding is the page's job.

@@ -23,8 +23,12 @@ S.push(plane(0.6, 9.6, 8.4, 14.4));     // on-premises estate
 
 S.push(planeLabel("AZURE VNET", 4.95, 0.72, "x"));
 S.push(planeLabel("APP SUBNET", 12.3, 1.06, "x", { size: 12 }));
-S.push(planeLabel("DATA SUBNET", 8.55, 7.75, "y", { size: 12 }));
-S.push(planeLabel("ENTRA ID", 0.95, 4.05, "x", { size: 11, ls: 1.8 }));
+// at x 8.55 the label's tail sat ~2px off blob's near corner — the collision
+// check flagged it; 0.15 further out clears the silhouette with margin
+S.push(planeLabel("DATA SUBNET", 8.4, 7.75, "y", { size: 12 }));
+// at x 0.95 the dashed Entra Connect flow ran through the "ID" glyphs (the
+// collision check caught it); slid left so the label ends before the route
+S.push(planeLabel("ENTRA ID", 0.5, 4.05, "x", { size: 11, ls: 1.8 }));
 S.push(planeLabel("ON-PREMISES", 4.6, 14.65, "x", { size: 13 }));
 
 // units — cloud

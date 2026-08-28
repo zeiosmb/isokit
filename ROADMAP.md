@@ -38,11 +38,13 @@ Phase 1.5 — TypeScript port (done 2026-08-28):
 
 Phase 2 — auto-placement, incremental (next; each step useful on its own):
 
-1. **Label collision check** — error when an authored label intersects a unit's screen silhouette or a flow route (the machinery already computes silhouettes for chip snapping). Cheapest step; would have caught every label collision hit so far.
+1. **Label collision check** (done 2026-08-28) — hard error when an authored label intersects a unit's screen silhouette or a flow route, run automatically at `write()` time. Immediately caught two real collisions in the shipped hybrid layout (a label tail grazing the store's corner, a dashed flow running through "ENTRA ID") — both fixed, hybrid golden regenerated and visually verified.
 2. **Auto label placement** — score candidate positions along a plane's edges against silhouettes and flows; author override stays possible.
 3. **Auto chip approach** — pick a clear approach ray automatically; `annotate()` drops its coordinate in the common case.
 4. **Group packing** — a plane lays out its member units into rows/columns on the snapped grid; explicit cells become the override, not the default.
 5. **Auto flow routing** — orthogonal routing around occupied cells (well-trodden algorithms; the snap grid and axis-lock make it tractable), replacing most hand-authored `via` waypoints.
+
+Ongoing (orthogonal to the phases): **grow the shape vocabulary substantially.** The collision engine is already shape-agnostic — a new shape inherits the generic footprint × height hull automatically; it only needs a `_DEF_H` entry and must draw inside its footprint box (or declare a tighter hull, as `cyl` does for its drum). If bespoke hulls multiply, promote the tight-hull description to a declarative per-shape property instead of branches in `_collisionHull`.
 
 Phase 3 — the semantic format (only after Phase 2 makes it honest):
 

@@ -152,6 +152,7 @@ let _CANVAS_W = 1400, _CANVAS_H = 700;
 
 export function svgOpen(w = 1400, h = 700): string[] {
   _CANVAS_W = w; _CANVAS_H = h;          // legend() checks its content against this
+  _LABELS.length = 0; _FLOWPTS.length = 0;   // new artifact: reset collision registries
   return [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">`,
     `<defs><style>
 @font-face {font-family:'JetBrains Mono';font-weight:400;src:url(data:font/woff2;base64,${_font(400)}) format('woff2');}
@@ -207,9 +208,16 @@ export function planeLabel(txt: string, x: number, y: number, axis: "x" | "y", o
   const { size = 15, ls = 2.5, weight = 400, z = 0 } = opts;
   const fill = opts.fill || INK2;      // resolved at call time so setTheme() applies
   const [X, Y] = iso(x, y, z);
-  const m = axis === "x"
-    ? `matrix(0.866,0.5,-0.866,0.5,${pyf(X, 1)},${pyf(Y, 1)})`
-    : `matrix(0.866,-0.5,0.866,0.5,${pyf(X, 1)},${pyf(Y, 1)})`;
+  // shear basis: local u along the baseline, local v toward descenders
+  const [a, b, c, d] = axis === "x" ? [0.866, 0.5, -0.866, 0.5] : [0.866, -0.5, 0.866, 0.5];
+  const m = `matrix(${a},${b},${c},${d},${pyf(X, 1)},${pyf(Y, 1)})`;
+  // estimated screen quad for the collision check: monospace advance 0.6em
+  // plus letter-spacing per gap; ascent 0.75em, descent 0.2em
+  const W = txt.length * size * 0.6 + (txt.length - 1) * ls;
+  const asc = 0.75 * size, desc = 0.2 * size;
+  const quad: Pt[] = ([[0, -asc], [W, -asc], [W, desc], [0, desc]] as Pt[])
+    .map(([u, v]) => [a * u + c * v + X, b * u + d * v + Y]);
+  _LABELS.push({ txt, quad });
   return `<text x="0" y="0" font-family=${MONOQ} font-size="${size}" font-weight="${weight}" `
     + `fill="${fill}" letter-spacing="${ls}" transform="${m}">${txt}</text>`;
 }
@@ -240,6 +248,7 @@ export function flow(points: Pt[], color: string, opts: FlowOpts = {}): string {
     const tri: Pt[] = [tip, [b[0] + px * hw, b[1] + py * hw], [b[0] - px * hw, b[1] - py * hw]];
     return [b, poly(tri.map(p => iso(p[0], p[1])), { fill: color })];
   }
+  _FLOWPTS.push(points.map(p => iso(p[0], p[1])));  // full route (shaft + head span) for the label collision check
   const pts_ = points.slice(); const out: string[] = [];
   const [bEnd, hEnd] = headAt(pts_[pts_.length - 1], pts_[pts_.length - 2]);
   out.push(hEnd); pts_[pts_.length - 1] = bEnd;
@@ -762,6 +771,26 @@ function _silhouette(name: string): Pt[] {
     iso(x, y, h), iso(x + s, y, h), iso(x + s, y + s, h), iso(x, y + s, h)]);
 }
 
+/** Number bubble shared by chips and legend rows: one digit keeps the classic
+r=11 circle; more digits widen it into a horizontal pill (same 22px height,
+0.6em advance per digit, 1-digit side padding preserved) — numbers stay
+readable to 9999 without ballooning into a bigger circle. `ext` sets the
+anchor semantics: 0 = shape centered on (cx, cy); -1/+1 = (cx, cy) is the
+end-cap center and the body grows in that screen-x direction — pointer chips
+grow away from their target so the tail tip never moves with digit count,
+and the legend grows left so every row's number shares one right edge. */
+function _numShape(n: number, cx: number, cy: number, ext: -1 | 0 | 1): string {
+  const d = String(n).length;
+  const hw = 3.6 * d + 7.4;               // half-width; 11 when d = 1
+  const c = cx + ext * (hw - 11);          // pill (and text) center
+  const shape = d === 1
+    ? `<circle cx="${pyf(cx, 0)}" cy="${pyf(cy, 0)}" r="11" fill="${A1}"/>`
+    : `<rect x="${pyf(c - hw, 0)}" y="${pyf(cy - 11, 0)}" width="${pyf(2 * hw, 0)}" `
+      + `height="22" rx="11" fill="${A1}"/>`;
+  return shape + `<text x="${pyf(c, 0)}" y="${pyf(cy + 4, 0)}" font-family=${MONOQ} `
+    + `font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">${n}</text>`;
+}
+
 /** Numbered marker. to = unit name or [gx, gy]: grows a pointer tail
 from the circle toward what it labels (Azure-style pin, not a bare dot).
 The authored position sets only the approach direction; the chip slides
@@ -769,11 +798,12 @@ along that ray so the tip sits exactly `gap` px off the unit's screen
 silhouette (plate + solid), however close or far it was authored. */
 export function chip(n: number, x: number, y: number, to: string | Pt | null = null, gap = 5.0): string {
   let [X, Y] = iso(x, y);
+  let ext: -1 | 0 | 1 = 0;   // bare chips center the bubble on the point
   const g: string[] = [];
   if (to != null) {
     let TX: number, TY: number;
     if (typeof to === "string") {
-      const hull = _silhouette(to);
+      const hull = _collisionHull(to);
       TX = hull.reduce((a, p) => a + p[0], 0) / hull.length;
       TY = hull.reduce((a, p) => a + p[1], 0) / hull.length;
       const dx = TX - X, dy = TY - Y;
@@ -802,13 +832,12 @@ export function chip(n: number, x: number, y: number, to: string | Pt | null = n
     // slides along that ray so the tip sits exactly `gap` px off the edge
     const tip: Pt = [TX - ux * gap, TY - uy * gap];
     X = tip[0] - ux * 19; Y = tip[1] - uy * 19;
+    ext = ux > 0 ? -1 : 1;   // multi-digit body grows away from the target
     const b1: Pt = [X + 9.5 * Math.cos(a + 0.55), Y + 9.5 * Math.sin(a + 0.55)];
     const b2: Pt = [X + 9.5 * Math.cos(a - 0.55), Y + 9.5 * Math.sin(a - 0.55)];
     g.push(poly([tip, b1, b2], { fill: A1 }));
   }
-  g.push(`<circle cx="${pyf(X, 0)}" cy="${pyf(Y, 0)}" r="11" fill="${A1}"/>`);
-  g.push(`<text x="${pyf(X, 0)}" y="${pyf(Y + 4, 0)}" font-family=${MONOQ} font-size="12" font-weight="700" `
-    + `fill="#ffffff" text-anchor="middle">${n}</text>`);
+  g.push(_numShape(n, X, Y, ext));
   return g.join("");
 }
 
@@ -851,20 +880,26 @@ content extent is checked against the canvas height captured by svgOpen() —
 an entry that would render past the bottom is a hard error, not a silent clip. */
 export function legend(entries: [string, string][], opts: { footer?: string | null; x?: number; w?: number } = {}): string {
   const { footer = null, x = 1054, w = 346 } = opts;
+  // number column geometry is digit-aware: every row's bubble shares one
+  // right edge, placed so the rail's WIDEST pill keeps >=10px off the rail's
+  // left edge. One- and two-digit rails resolve to the classic edge at x+43
+  // (existing renders byte-stable); the whole column (and the text column,
+  // a constant 13px after it) shifts right only when wider pills exist.
+  const dMax = String(entries.length).length;
+  const edge = Math.max(43, 10 + 2 * (3.6 * dMax + 7.4));
+  const tx = x + edge + 13;
   const g = [`<rect x="${x}" y="0" width="${w}" height="${_CANVAS_H}" fill="${RAIL}"/>`,
     `<text x="${x + 32}" y="48" font-family=${MONOQ} font-size="13" font-weight="700" `
     + `fill="${INK2}" letter-spacing="4">LEGEND</text>`];
   let y = 76;
   for (let i = 0; i < entries.length; i++) {
     const [t, d] = entries[i];
-    g.push(`<circle cx="${x + 32}" cy="${y}" r="11" fill="${A1}"/>`);
-    g.push(`<text x="${x + 32}" y="${y + 4}" font-family=${MONOQ} font-size="12" `
-      + `font-weight="700" fill="#ffffff" text-anchor="middle">${i + 1}</text>`);
-    g.push(`<text x="${x + 56}" y="${y + 4}" font-family=${MONOQ} font-size="13.5" `
+    g.push(_numShape(i + 1, x + edge - 11, y, -1));
+    g.push(`<text x="${tx}" y="${y + 4}" font-family=${MONOQ} font-size="13.5" `
       + `font-weight="700" fill="${INK}">${t}</text>`);
     let yy = y + 20;
     for (const ln of wrap(d)) {
-      g.push(`<text x="${x + 56}" y="${yy}" font-family=${MONOQ} font-size="11.5" `
+      g.push(`<text x="${tx}" y="${yy}" font-family=${MONOQ} font-size="11.5" `
         + `fill="${INK2}">${ln}</text>`); yy += 15;
     }
     y = yy + 20;
@@ -880,6 +915,117 @@ export function legend(entries: [string, string][], opts: { footer?: string | nu
       + "(needs 16px margin) — shorten/drop entries or open a taller canvas");
   }
   return g.join("");
+}
+
+// ---- label collision check (Phase 2 step 1) ----
+// planeLabel() registers its estimated screen quad and flow() its projected
+// route as they are called; checkLabels() (run automatically by write())
+// errors if any label intersects a registered unit's silhouette or a flow
+// route. Both registries reset per artifact in svgOpen(). Registry units only:
+// shapes drawn directly (outside unit()) have no known silhouette.
+const _LABELS: { txt: string; quad: Pt[] }[] = [];
+const _FLOWPTS: Pt[][] = [];
+
+function _project(poly: Pt[], ax: Pt): [number, number] {
+  let lo = Infinity, hi = -Infinity;
+  for (const [px, py] of poly) {
+    const v = px * ax[0] + py * ax[1];
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
+}
+
+// convex-convex intersection via separating axis theorem. The label quad is
+// an em-box ESTIMATE overshooting real glyph ink by ~2px (advance/ascent/
+// descender slack), so penetration shallower than EPS counts as clear —
+// a sub-pixel graze of a plate corner is not a collision, ink meeting
+// visible geometry is. Larger clearances are auto-placement's job (a scoring
+// preference), not this error floor.
+const _EPS_PX = 3;
+function _polysOverlap(a: Pt[], b: Pt[]): boolean {
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const [px, py] = poly[i], [qx, qy] = poly[(i + 1) % poly.length];
+      const [dx, dy] = [qx - px, qy - py];
+      const len = (dx * dx + dy * dy) ** 0.5;
+      if (len === 0) continue;
+      const ax: Pt = [-dy / len, dx / len];   // unit normal so EPS is in px
+      const [alo, ahi] = _project(a, ax), [blo, bhi] = _project(b, ax);
+      if (ahi - blo < _EPS_PX || bhi - alo < _EPS_PX) return false;
+    }
+  }
+  return true;
+}
+
+function _inConvex(p: Pt, poly: Pt[]): boolean {
+  let sign = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const [px, py] = poly[i], [qx, qy] = poly[(i + 1) % poly.length];
+    const cr = (qx - px) * (p[1] - py) - (qy - py) * (p[0] - px);
+    if (cr === 0) continue;
+    const s = cr > 0 ? 1 : -1;
+    if (sign === 0) sign = s;
+    else if (s !== sign) return false;
+  }
+  return true;
+}
+
+function _segsCross(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
+  const cr = (p: Pt, q: Pt, r: Pt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const d1 = cr(c, d, a), d2 = cr(c, d, b), d3 = cr(a, b, c), d4 = cr(a, b, d);
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+
+function _segHitsPoly(a: Pt, b: Pt, poly: Pt[]): boolean {
+  if (_inConvex(a, poly) || _inConvex(b, poly)) return true;
+  for (let i = 0; i < poly.length; i++) {
+    if (_segsCross(a, b, poly[i], poly[(i + 1) % poly.length])) return true;
+  }
+  return false;
+}
+
+/** Collision hull for a unit — used by BOTH the label collision check and
+chip snapping. The naive _silhouette (full footprint at height) false-
+positives on cylinders: the drum is only r-wide at the footprint's center,
+leaving phantom hull at the corners — labels there are fine and chips
+snapped to it float far off the drum. cyl gets plate corners + the drum's
+actual screen box; other shapes fill their footprint closely enough that
+_silhouette is honest. */
+function _collisionHull(name: string): Pt[] {
+  const { fn, dx: x, dy: y, s, kw } = _unit(name);
+  if (fn.name === "cyl") {
+    const r = kw.r ?? 0.5, h = kw.h ?? 1.25;
+    const cx = x + s / 2, cy = y + s / 2;
+    const [Xc, Yt] = iso(cx, cy, h); const Yb = iso(cx, cy, 0)[1];
+    const rx = 1.2247 * r * U, ry = 0.577 * rx;
+    const m = PLATE_M;
+    return _hull([iso(x - m, y - m), iso(x + s + m, y - m),
+      iso(x + s + m, y + s + m), iso(x - m, y + s + m),
+      [Xc - rx, Yt - ry], [Xc + rx, Yt - ry], [Xc - rx, Yb + ry], [Xc + rx, Yb + ry]]);
+  }
+  return _silhouette(name);
+}
+
+/** Error if any registered label's screen extent intersects a unit's
+collision hull or a flow route. write() runs this automatically. */
+export function checkLabels(): void {
+  for (const { txt, quad } of _LABELS) {
+    for (const name of _UNITS.keys()) {
+      if (_polysOverlap(quad, _collisionHull(name))) {
+        throw new Error(`label "${txt}" intersects unit '${name}' silhouette — `
+          + "move the label clear or shorten it");
+      }
+    }
+    for (const route of _FLOWPTS) {
+      for (let i = 0; i < route.length - 1; i++) {
+        if (_segHitsPoly(route[i], route[i + 1], quad)) {
+          throw new Error(`label "${txt}" crosses a flow route — `
+            + "move the label clear or reroute the flow");
+        }
+      }
+    }
+  }
 }
 
 /** Resolve an output path for `name`: $ISOKIT_OUT if set, else the first
@@ -904,6 +1050,7 @@ export function out(name: string): string {
 }
 
 export function write(pathOut: string, parts: string[]): void {
+  checkLabels();
   fs.writeFileSync(pathOut, parts.concat(["</svg>"]).join("\n"));
   const ok = spawnSync("xmllint", ["--noout", pathOut], { stdio: "inherit" }).status === 0;
   console.log(ok ? "valid" : "INVALID", Math.floor(fs.statSync(pathOut).size / 1024), "KB", pathOut);

@@ -43,18 +43,49 @@ S.push(annotations());
 write(out("Minimal.svg"), S);
 ```
 
+## YAML
+
+Diagrams can also be authored as semantic YAML instead of a TypeScript layout
+script — no coordinates in the common case, meant to be authored by an AI
+agent from a topology description (or by hand):
+
+```yaml
+isokit: 1
+title: "MINIMAL"
+
+units:
+  web: { shape: box, glyph: app, accent: 1 }
+  db:  { shape: cyl, accent: 3 }
+
+groups:
+  app-tier: { label: APP TIER, units: [web, db] }
+
+flows:
+  - { from: web, to: db }
+```
+
+Render it:
+
+```bash
+node src/cli.ts render examples/minimal.yaml
+```
+
+(`isokit render examples/minimal.yaml` once the package is linked.) The full
+format contract — every key, enum, the layout-derivation order, and the
+complete error table — is [SPEC.md](SPEC.md).
+
 ## What's enforced
 
 - Unit positions snap to integer grid cells; every unit owns a whole-cell footprint (default 2×2, `cells: [w, d]` to override); overlapping footprints are an error.
 - Flow routes are axis-locked — any diagonal segment (including hand-authored `via` waypoints) is an error, because it renders at a non-isometric angle.
-- Ground-seam coordinates must land exactly on a grid line.
+- Estate boundaries (the two-tone ground edge) must land exactly on a grid line.
 - Chips and legend come from one `annotate()` declaration per unit — they cannot desync.
 - Legend content is measured against the canvas and errors instead of clipping.
 - Plane labels are collision-checked: a label whose text intersects a unit's screen silhouette or a flow route fails generation instead of shipping overlapping ink.
 
 ## Layout vocabulary
 
-Shapes: `box` (service cube with face glyph), `cyl` (database drum with curved label), `rack`, `building`, `wall` (brick firewall), `queue`, `store` (layered blob storage), `slab`, `panel`, `padlock`, `users`, plus device billboards (`laptop`, `monitor`, `phone`, `browser`, `person`). Grouping: translucent `plane()` sheets (optionally raised on posts with a `z` argument), two-tone ground seam, plane-projected labels. Themes: `blueprint` (dark navy) and `azure` (marketing blues); `setTheme()` swaps every token.
+Shapes: `box` (service cube with face glyph), `cyl` (database drum with curved label), `rack`, `building`, `wall` (brick firewall), `queue`, `store` (layered blob storage), `slab`, `panel`, `padlock`, `users`, plus device billboards (`laptop`, `monitor`, `phone`, `browser`, `person`). Grouping: translucent `plane()` sheets (optionally raised on posts with a `z` argument), two-tone ground estates (`grid({seam})`), plane-projected labels. Themes: `blueprint` (dark navy) and `azure` (marketing blues); `setTheme()` swaps every token.
 
 The full grammar — projection math, face shears, shape anatomy, and every hard-won rule — lives in [STYLE.md](STYLE.md). Read it before writing or modifying a layout; corrections get ratcheted into it (and into enforcement code where possible), never applied as one-offs.
 
@@ -75,11 +106,14 @@ Golden policy: the goldens' job is to make every rendering change *deliberate*, 
 | Script | Output | Notes |
 | --- | --- | --- |
 | `layouts/azure_lob.ts` | Azure Isometric.svg | Gold-standard exemplar, Blueprint theme |
-| `layouts/hybrid_onprem_azure.ts` | Hybrid OnPrem Azure.svg | Azure theme, on-prem boundary via ground seam |
+| `layouts/hybrid_onprem_azure.ts` | Hybrid OnPrem Azure.svg | Azure theme, on-prem estate via two-tone ground |
 | `layouts/components.ts` | Isometric Components.svg | The full shape vocabulary on plates |
 | `layouts/collision_gauntlet.ts` | Collision Gauntlet.svg | Every label tuned steps inside the collision-check boundary — regression fixture for the check's geometry |
 | `layouts/glossary.ts` | Diagram Glossary.svg | Every part of a diagram, named and pointed at (uses direct `chip()`/`legend()` for non-unit entries) |
 | `layouts/chip_scale.ts` | Chip Scale Demo.svg | Chip numbers 0–9999: pill growth, tip alignment, legend column alignment — regression fixture |
+| `layouts/auto_label_demo.ts` | AutoLabel Demo.svg | Both tier captions placed by `autoLabel()`: canonical corner + crowded-plane outside fallback — regression fixture |
+| `layouts/group_pack_demo.ts` | Group Pack Demo.svg | Both tiers packed by `group()`: member cells, planes, and captions derived; one hand-placed unit as the override — regression fixture |
+| `layouts/auto_route_demo.ts` | AutoRoute Demo.svg | Zero authored `via` waypoints: straight flow stays straight, blocked flows detour around a worker row on the screen-front lane — regression fixture |
 
 ## History
 

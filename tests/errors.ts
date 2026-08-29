@@ -3,7 +3,7 @@
 // product (they are what makes agent self-correction work), so each one is
 // asserted here with a message substring check.
 import { setTheme, configure, svgOpen, grid, flow, unit, resetUnits,
-  annotate, annotations, edgePt, box, A1, A2 } from "../src/isokit.ts";
+  annotate, annotations, edgePt, box, legend, A1, A2 } from "../src/isokit.ts";
 
 setTheme("blueprint");
 configure(46, 440, 48);
@@ -68,12 +68,30 @@ expectThrow("annotate duplicate",
   () => annotate("a", "Again", "desc.", [0, 0]),
   "already annotated");
 
-// legend overflow: tiny canvas, the single registered annotation still fits —
-// force overflow with a canvas shorter than one entry
+// legend overflow: tiny canvas, a single annotation forces overflow with a
+// canvas shorter than one entry (svgOpen resets the annotation registry, so
+// the entry is re-declared for this artifact)
 svgOpen(1400, 80);
+resetUnits();
+unit("a", box, 2, 2, { rim: A2 });
+annotate("a", "Title", "desc.", [0, 0]);
 expectThrow("legend overflow",
   () => annotations(),
   "legend content reaches");
+
+// legend WIDTH overflow: height only was guarded originally; a long title,
+// an unbreakable desc word, or a long footer ran past the rail's right edge
+// as a silent clip (shipped twice as clipped footers)
+svgOpen(1400, 700);
+expectThrow("legend title too wide",
+  () => legend([["A far too long legend entry title indeed", "d"]]),
+  "but the rail ends at");
+expectThrow("legend desc word too wide",
+  () => legend([["T", "an unbreakable-word-far-longer-than-the-rail-allows"]]),
+  "but the rail ends at");
+expectThrow("legend footer too wide",
+  () => legend([["T", "d"]], { footer: "a footer far too long to fit inside the legend rail" }),
+  "but the rail ends at");
 
 if (fail) process.exit(1);
 console.log("errors: all guards ok");

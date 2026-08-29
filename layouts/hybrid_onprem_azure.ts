@@ -1,9 +1,10 @@
 /* Hybrid on-prem-to-Azure diagram — Azure theme stress test for isokit.
-Exercises: setTheme, two-tone ground seam as the on-prem/cloud boundary,
+Exercises: setTheme, two-tone estates as the on-prem/cloud boundary,
 wall (firewall) + queue shapes, raised plane, registry connect-by-name. */
-import { setTheme, configure, out, plane, planeLabel, grid, svgOpen,
-  write, box, cyl, wall, queue, store, rack, building, users,
+import { setTheme, configure, plane, planeLabel, autoLabel, grid, svgOpen,
+  box, cyl, wall, queue, store, rack, building, users,
   unit, connect, renderUnits, annotate, annotations, GLYPHS, MONOQ } from "../src/isokit.ts";
+import { out, write } from "../src/io.ts";
 // theme tokens are live bindings — import the module namespace so values
 // read AFTER setTheme("azure") below (a static `import { INK }` would also
 // stay live, but the namespace makes the dependency explicit)
@@ -15,21 +16,17 @@ configure(46, 440, 48);
 const S = svgOpen(1400, 700);
 S.push(grid({ seam: ["y", 9] }));        // ground drops darker: on-premises
 
-S.push(plane(4.6, 0.4, 15.2, 8.4));     // Azure VNet
+// ONE rect, shared by plane() and autoLabel() so the caption can't desync
+// from the drawn ink; bottom margin 0.6 — the hq/staff arrowheads enter
+// vpngw's +y edge and their 0.42-cell bases sat exactly on a 0.4-margin line;
+// east edge 15.4 — the subnets end at 15.0, and 15.2 ran the VNet line 0.2
+// from theirs (the top edge's 0.4 gap is the rhythm the whole outline keeps)
+const vnetRect: [number, number, number, number] = [4.6, 0.4, 15.4, 8.6];
+S.push(plane(...vnetRect));             // Azure VNet
 S.push(plane(9.8, 0.8, 15.0, 4.2));     // app subnet
 S.push(plane(8.8, 4.8, 15.0, 7.2));     // data subnet
 S.push(plane(0.8, 1.0, 3.6, 3.8));      // Entra (SaaS, outside the VNet)
 S.push(plane(0.6, 9.6, 8.4, 14.4));     // on-premises estate
-
-S.push(planeLabel("AZURE VNET", 4.95, 0.72, "x"));
-S.push(planeLabel("APP SUBNET", 12.3, 1.06, "x", { size: 12 }));
-// at x 8.55 the label's tail sat ~2px off blob's near corner — the collision
-// check flagged it; 0.15 further out clears the silhouette with margin
-S.push(planeLabel("DATA SUBNET", 8.4, 7.75, "y", { size: 12 }));
-// at x 0.95 the dashed Entra Connect flow ran through the "ID" glyphs (the
-// collision check caught it); slid left so the label ends before the route
-S.push(planeLabel("ENTRA ID", 0.5, 4.05, "x", { size: 11, ls: 1.8 }));
-S.push(planeLabel("ON-PREMISES", 4.6, 14.65, "x", { size: 13 }));
 
 // units — cloud
 unit("vpngw", box, 5, 6, { rim: T.A2, glyph: GLYPHS["gw"] });
@@ -64,19 +61,28 @@ S.push(connect("staff", "vpngw", { exit: ["-y", 0.25], enter: ["+y", 0.75],
 
 S.push(renderUnits());
 
+// captions auto-placed against everything declared above — the hand anchors
+// they replace were themselves two collision-check discoveries (DATA SUBNET's
+// tail 2px off blob's corner, the Entra Connect flow through "ENTRA ID")
+S.push(autoLabel("AZURE VNET", vnetRect));
+S.push(autoLabel("APP SUBNET", [9.8, 0.8, 15.0, 4.2], { size: 12 }));
+S.push(autoLabel("DATA SUBNET", [8.8, 4.8, 15.0, 7.2], { size: 12 }));
+S.push(autoLabel("ENTRA ID", [0.8, 1.0, 3.6, 3.8], { size: 11, ls: 1.8 }));
+S.push(autoLabel("ON-PREMISES", [0.6, 9.6, 8.4, 14.4], { size: 13 }));
+
 // raised tier sheet floating over the app pair (reference-style)
 S.push(plane(9.9, 0.9, 15.1, 4.1, 1.75));
 S.push(planeLabel("LOB APPLICATION", 10.35, 1.22, "x", { size: 12, z: 1.75 }));
 
 // one declaration per unit: chip number, chip approach, and legend entry
 // all come from here, numbered in declaration order
-annotate("hq",    "On-premises",    "HQ, domain controllers, and staff behind the corporate edge.", [3.0, 12.6]);
+annotate("hq",    "On-premises",    "HQ, domain controllers, and staff behind the corporate edge.");   // auto: the authored ray stopped at the plate ring's corner air
 annotate("vpngw", "VPN Gateway",    "site-to-site tunnel terminates the private link.", [3.6, 7.7]);
 annotate("fw",    "Azure Firewall", "inspects all traffic entering the VNet.", [3.8, 4.4]);
 annotate("app1",  "App tier",       "LOB application pair in the app subnet.", [11.1, -0.7]);
 annotate("sql",   "Azure SQL",      "system of record in the data subnet.", [13.4, 9.8]);
 annotate("queue", "Service Bus",    "queue decouples async work.", [15.9, 7.2]);
-annotate("entra", "Entra ID",       "hybrid identity synced from on-prem AD.", [4.4, 2.5]);
+annotate("entra", "Entra ID",       "hybrid identity synced from on-prem AD.");   // auto: the authored balloon sat on the ENTRA ID caption
 annotate("blob",  "Blob Storage",   "files and artifacts in the storage account.", [8.2, 4.0]);
 
 S.push(`<text x="40" y="52" font-family=${MONOQ} font-size="24" font-weight="700" fill="${T.INK}">HYBRID: ON-PREM TO AZURE</text>`);

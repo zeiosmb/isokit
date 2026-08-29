@@ -1,9 +1,10 @@
 /* Isometric component sheet — the isokit shape vocabulary on plates,
 mirroring the SlideModel components sheet. Blueprint theme. */
-import { configure, out, iso, plane, planeLabel, grid, svgOpen, write,
+import { configure, iso, plane, planeLabel, grid, svgOpen,
   flow, plate, box, slab, panel, cyl, rack, building, monitor,
   laptop, phone, person, personDevice, browser, padlock,
   wall, queue, store, users, GLYPHS, INK, INK2, A1, A2, A3, MONOQ } from "../src/isokit.ts";
+import { out, write } from "../src/io.ts";
 
 configure(46, 720, 150);
 const S = svgOpen(1400, 1050);

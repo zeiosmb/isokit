@@ -3,7 +3,7 @@
 // flow route must be a hard generation error at checkLabels() time (write()
 // runs it automatically); clear layouts must pass untouched.
 import { setTheme, configure, svgOpen, resetUnits, unit, box, cyl, store,
-  planeLabel, flow, checkLabels, chip, iso, U, PLATE_M, A2 } from "../src/isokit.ts";
+  planeLabel, flow, checkLabels, checkPlanes, plane, chip, iso, U, PLATE_M, A2 } from "../src/isokit.ts";
 
 setTheme("blueprint");
 configure(46, 440, 48);
@@ -121,6 +121,123 @@ expectThrow("one step past the drum-hull boundary", () => checkLabels(), `label 
     }
   }
 }
+
+// shape collision properties are DECLARED on the shape function (defH, and
+// optionally a tight hull), never looked up by fn.name — so custom shapes
+// and minified bundles get correct hulls without touching engine code.
+// A shape declaring defH=3 must cast a 3-tall silhouette:
+{
+  svgOpen(1400, 700);
+  resetUnits();
+  const tower = (x: number, y: number, kw = {}): string => box(x, y, kw);
+  Object.assign(tower, { defH: 3.0 });
+  unit("t", tower, 5, 5, { rim: A2 });
+  planeLabel("TALL", 2.8, 3.0, "x");   // under the h=3 top's screen shadow
+  expectThrow("declared defH raises the silhouette", () => checkLabels(),
+    `label "TALL" intersects unit 't'`);
+}
+// a shape declaring a tight hull overrides the footprint-box silhouette:
+{
+  svgOpen(1400, 700);
+  resetUnits();
+  const dot = (x: number, y: number, kw = {}): string => box(x, y, kw);
+  Object.assign(dot, {
+    hull: (x: number, y: number, s: number): [number, number][] =>
+      [iso(x + 0.9, y + 0.9), iso(x + 1.1, y + 0.9),
+       iso(x + 1.1, y + 1.1), iso(x + 0.9, y + 1.1)],
+  });
+  unit("d", dot, 5, 5, { rim: A2 });
+  // on the plate edge: collides with the footprint silhouette (contrast case
+  // below), clear of the declared tight hull
+  planeLabel("THROUGH", 5.5, 7.0, "x");
+  expectOk("declared tight hull overrides the silhouette", () => checkLabels());
+}
+// contrast: the same label placement against an undeclared-hull box collides
+{
+  svgOpen(1400, 700);
+  resetUnits();
+  unit("d", box, 5, 5, { rim: A2 });
+  planeLabel("THROUGH", 5.5, 7.0, "x");
+  expectThrow("footprint silhouette still applies without a declared hull",
+    () => checkLabels(), `label "THROUGH" intersects unit 'd'`);
+}
+
+// ---- plane outlines are collision objects (checkPlanes) ----
+// The plane-margin rule (STYLE.md: >= 0.6 on flow-crossed edges) was
+// documentation only; three layouts shipped an arrowhead base sitting
+// exactly ON a 0.4-margin plane line before it became this guard.
+
+// head base exactly on the plane's bottom line (the shipped defect)
+svgOpen(1400, 700);
+resetUnits();
+plane(4, 4, 8, 6.4);
+flow([[6, 7.5], [6, 5.98]], A2);   // tip (6, 5.98), base (6, 6.4) = the line
+expectThrow("head base on a plane line", () => checkPlanes(), "plane outline");
+
+// base NEAR the line (sub-4px air) is the same defect, not a pass
+svgOpen(1400, 700);
+resetUnits();
+plane(4, 4, 8, 6.42);
+flow([[6, 7.5], [6, 5.98]], A2);   // base (6, 6.4) vs line 6.42: ~0.8px
+expectThrow("head base grazing a plane line", () => checkPlanes(), "plane outline");
+
+// a line crossing MID-head is an intentional boundary crossing (hybrid's
+// fw->app1 head straddles the app-subnet line): tip and base both clear
+svgOpen(1400, 700);
+resetUnits();
+plane(4, 4, 8, 6.4);
+flow([[6, 7.5], [6, 6.2]], A2);    // tip (6, 6.2), base (6, 6.62): line mid-triangle
+expectOk("clean mid-head boundary crossing passes", () => checkPlanes());
+
+// a compliant 0.6 margin passes with room
+svgOpen(1400, 700);
+resetUnits();
+plane(4, 4, 8, 6.6);
+flow([[6, 7.5], [6, 5.58]], A2);   // base (6, 6.0), line 6.6
+expectOk("0.6-margin head passes", () => checkPlanes());
+
+// a TIP landing on a plane line is legal: tips land on the target's cell
+// rect, and a plane edge flush with that rect is the exemplar's "arrow
+// enters the tier" look (azure_lob's users->gw against the app tier's
+// west edge) — only the BASE on a line is the margin defect
+svgOpen(1400, 700);
+resetUnits();
+plane(6, 4, 10, 8);
+flow([[4, 5], [6, 5]], A2);        // tip (6, 5) exactly on the west edge x=6
+expectOk("tip landing on a flush plane edge passes", () => checkPlanes());
+
+// raised planes are depth-layered sheets, not ground outlines: a head
+// under a raised plane's screen-space edge is occlusion, not touching
+svgOpen(1400, 700);
+resetUnits();
+plane(4, 4, 8, 6.4, 1.75);
+flow([[6, 7.5], [6, 5.98]], A2);
+expectOk("raised plane edges are not obstacles", () => checkPlanes());
+
+// labels: ink straddling a plane outline is an error at checkLabels time...
+svgOpen(1400, 700);
+resetUnits();
+plane(3, 1, 10, 6.5);
+planeLabel("EDGE", 5, 1.0, "x");   // em box straddles the top line y=1
+expectThrow("label on a plane outline", () => checkLabels(), "plane outline");
+
+// ...but the canonical caption spot (0.3 inside, ink hugging the line with
+// ~2px of air) is the exemplar convention and must stay legal
+svgOpen(1400, 700);
+resetUnits();
+plane(3, 1, 10, 6.5);
+planeLabel("CAP", 3.3, 1.3, "x");
+expectOk("canonical inside caption passes", () => checkLabels());
+
+// a line CROSSING a label at the iso angle (~60 deg, a short chord through
+// the em box) is the benign shipped look (azure_lob's drum caption crosses
+// the identity plane's top line); only a line running ALONG the label — a
+// long chord, ink lying on the stroke — is the defect
+svgOpen(1400, 700);
+resetUnits();
+plane(3, 1, 10, 6.5);
+planeLabel("CROSS", 4, 1.5, "y");   // y-axis label straddling the x-running top line
+expectOk("perpendicular line crossing a label passes", () => checkLabels());
 
 // svgOpen starts a new artifact: stale labels/flows must not leak into it
 svgOpen(1400, 700);

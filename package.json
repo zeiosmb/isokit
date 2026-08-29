@@ -4,12 +4,15 @@
   "description": "Guarded generator for Azure-marketing-style isometric architecture diagrams, rendered as self-contained SVG",
   "type": "module",
   "license": "Apache-2.0",
+  "bin": {
+    "isokit": "src/cli.ts"
+  },
   "engines": {
     "node": ">=23.6"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node tests/pyfmt.ts && node tests/errors.ts && node tests/collisions.ts && node tests/chips.ts && bash tests/check-golden.sh"
+    "test": "node tests/pyfmt.ts && node tests/errors.ts && node tests/collisions.ts && node tests/chips.ts && node tests/autolabel.ts && node tests/autochip.ts && node tests/group.ts && node tests/autoroute.ts && node tests/yaml.ts && node tests/validate.ts && node tests/jsonschema.ts && node tests/semantic.ts && node tests/cli.ts && bash tests/check-golden.sh"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

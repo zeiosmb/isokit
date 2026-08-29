@@ -13,10 +13,7 @@ glyphs ON the shape, white diamond base plates, devices as real slab shapes.
 
 Ported 1:1 from the Python prototype (src/isokit/__init__.py at commit
 2f46dd2); output is byte-identical — see tests/golden/. */
-import * as fs from "node:fs";
-import * as os from "node:os";
-import * as path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import { JBM400, JBM700 } from "./fonts.ts";
 
 export type Pt = [number, number];
 type Attrs = Record<string, string | number>;
@@ -140,23 +137,18 @@ export function inset(quad: Pt[], t: number): Pt[] {
   return quad.map(([px, py]) => [px + (cx - px) * t, py + (cy - py) * t]);
 }
 
-// ---- fonts (base64-embedded JetBrains Mono; auto-fetch if /tmp copies gone) ----
-const _JBM = "https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5/files/jetbrains-mono-latin-{w}-normal.woff2";
-function _font(weight: number): string {
-  const p = `/tmp/jbm${weight}.woff2`;
-  if (!fs.existsSync(p)) execFileSync("curl", ["-sL", "-o", p, _JBM.replace("{w}", String(weight))]);
-  return fs.readFileSync(p).toString("base64");
-}
+// ---- fonts (base64-embedded JetBrains Mono from src/fonts.ts) ----
 
 let _CANVAS_W = 1400, _CANVAS_H = 700;
 
 export function svgOpen(w = 1400, h = 700): string[] {
   _CANVAS_W = w; _CANVAS_H = h;          // legend() checks its content against this
-  _LABELS.length = 0; _FLOWPTS.length = 0;   // new artifact: reset collision registries
+  _LABELS.length = 0; _FLOWPTS.length = 0; _FLOWHEADS.length = 0; _PLANES.length = 0;   // new artifact: reset collision registries
+  _CHIPS.length = 0; _ANNOTS.length = 0;
   return [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">`,
     `<defs><style>
-@font-face {font-family:'JetBrains Mono';font-weight:400;src:url(data:font/woff2;base64,${_font(400)}) format('woff2');}
-@font-face {font-family:'JetBrains Mono';font-weight:700;src:url(data:font/woff2;base64,${_font(700)}) format('woff2');}
+@font-face {font-family:'JetBrains Mono';font-weight:400;src:url(data:font/woff2;base64,${JBM400}) format('woff2');}
+@font-face {font-family:'JetBrains Mono';font-weight:700;src:url(data:font/woff2;base64,${JBM700}) format('woff2');}
 </style>
 <linearGradient id="cylg" x1="0" y1="0" x2="1" y2="0">
 <stop offset="0" stop-color="${CYLG[0]}"/><stop offset="0.55" stop-color="${CYLG[1]}"/><stop offset="1" stop-color="${CYLG[2]}"/>
@@ -191,6 +183,10 @@ export function grid(opts: GridOpts = {}): string {
 /** Translucent grouping sheet. z>0 floats it (reference-style raised tier);
 posts drops dashed corner ties to the ground so the height reads. */
 export function plane(x0: number, y0: number, x1: number, y1: number, z = 0, posts = true): string {
+  // ground planes register their outline as a collision object (checkPlanes);
+  // raised planes are depth-layered sheets — screen overlap there is
+  // occlusion, not touching, so they stay out of the registry
+  if (z === 0) _PLANES.push(zrect(x0, y0, x1, y1, 0));
   const g = [poly(zrect(x0, y0, x1, y1, z), { fill: INK, opacity: 0.07 }),
     poly(zrect(x0, y0, x1, y1, z), { fill: "none", stroke: INK, stroke_width: 1, opacity: 0.45 })];
   if (z > 0 && posts) {
@@ -204,6 +200,20 @@ export function plane(x0: number, y0: number, x1: number, y1: number, z = 0, pos
 
 export interface LabelOpts { size?: number; ls?: number; fill?: string | null; weight?: number; z?: number; }
 
+/** Estimated screen quad of a plane label — the monospace em-box (0.6em
+advance + letter-spacing per gap, 0.75em ascent, 0.2em descent) pushed
+through the axis' shear basis. Shared by planeLabel() registration and
+autoLabel() candidate testing so the two can never disagree. */
+function _labelQuad(txt: string, x: number, y: number, axis: "x" | "y",
+  size: number, ls: number, z = 0): Pt[] {
+  const [X, Y] = iso(x, y, z);
+  const [a, b, c, d] = axis === "x" ? [0.866, 0.5, -0.866, 0.5] : [0.866, -0.5, 0.866, 0.5];
+  const W = txt.length * size * 0.6 + (txt.length - 1) * ls;
+  const asc = 0.75 * size, desc = 0.2 * size;
+  return ([[0, -asc], [W, -asc], [W, desc], [0, desc]] as Pt[])
+    .map(([u, v]) => [a * u + c * v + X, b * u + d * v + Y]);
+}
+
 export function planeLabel(txt: string, x: number, y: number, axis: "x" | "y", opts: LabelOpts = {}): string {
   const { size = 15, ls = 2.5, weight = 400, z = 0 } = opts;
   const fill = opts.fill || INK2;      // resolved at call time so setTheme() applies
@@ -211,13 +221,7 @@ export function planeLabel(txt: string, x: number, y: number, axis: "x" | "y", o
   // shear basis: local u along the baseline, local v toward descenders
   const [a, b, c, d] = axis === "x" ? [0.866, 0.5, -0.866, 0.5] : [0.866, -0.5, 0.866, 0.5];
   const m = `matrix(${a},${b},${c},${d},${pyf(X, 1)},${pyf(Y, 1)})`;
-  // estimated screen quad for the collision check: monospace advance 0.6em
-  // plus letter-spacing per gap; ascent 0.75em, descent 0.2em
-  const W = txt.length * size * 0.6 + (txt.length - 1) * ls;
-  const asc = 0.75 * size, desc = 0.2 * size;
-  const quad: Pt[] = ([[0, -asc], [W, -asc], [W, desc], [0, desc]] as Pt[])
-    .map(([u, v]) => [a * u + c * v + X, b * u + d * v + Y]);
-  _LABELS.push({ txt, quad });
+  _LABELS.push({ txt, quad: _labelQuad(txt, x, y, axis, size, ls, z) });
   return `<text x="0" y="0" font-family=${MONOQ} font-size="${size}" font-weight="${weight}" `
     + `fill="${fill}" letter-spacing="${ls}" transform="${m}">${txt}</text>`;
 }
@@ -246,7 +250,9 @@ export function flow(points: Pt[], color: string, opts: FlowOpts = {}): string {
     const px = -uy, py = ux;
     const b: Pt = [tip[0] - ux * hl, tip[1] - uy * hl];
     const tri: Pt[] = [tip, [b[0] + px * hw, b[1] + py * hw], [b[0] - px * hw, b[1] - py * hw]];
-    return [b, poly(tri.map(p => iso(p[0], p[1])), { fill: color })];
+    const scr = tri.map(p => iso(p[0], p[1]));
+    _FLOWHEADS.push(scr);   // the flare is ink ~8px either side of the centerline
+    return [b, poly(scr, { fill: color })];
   }
   _FLOWPTS.push(points.map(p => iso(p[0], p[1])));  // full route (shaft + head span) for the label collision check
   const pts_ = points.slice(); const out: string[] = [];
@@ -651,7 +657,12 @@ export const PLATE_M = 0.22;    // plate outer-edge margin beyond the unit footp
 export function resetUnits(): void { _UNITS.clear(); }
 
 export function unit(name: string, fn: ShapeFn, x: number, y: number, opts: Kw = {}): void {
-  const { s = 1.4, cells = null, ...kw } = opts;
+  // s: authored override > the shape's declared default > the generic 1.4.
+  // It stays in kw so the shape draws the same footprint the registry
+  // centers and hulls (they diverged once — see ShapeProps.defS).
+  const { cells = null, ...kw } = opts;
+  const s = (kw.s as number | undefined) ?? _shapeProps(fn).defS ?? 1.4;
+  kw.s = s;
   if (!(Number.isInteger(x) && Number.isInteger(y))) {
     throw new Error(`unit '${name}': position must snap to grid cells, got (${x}, ${y})`);
   }
@@ -668,6 +679,39 @@ export function unit(name: string, fn: ShapeFn, x: number, y: number, opts: Kw =
   }
   const dx = x + (w - s) / 2, dy = y + (d - s) / 2;   // shape centered in its cells
   _UNITS.set(name, { fn, dx, dy, s, kw, rect });
+}
+
+/** Pack member units into rows/columns on the snapped grid and return the
+enclosing plane rect. Members place row-major from `origin` (an integer
+cell): each takes its whole-cell block (`cells` in its kw, default 2x2),
+the cursor advances by block width + `gap` cells, and a new row starts
+below the deepest block of the row above. Placement goes through unit(),
+so every guard applies — grid snap, footprint overlap (including against
+units placed outside the group) — and members connect/annotate by name
+like any hand-placed unit. Explicit unit() remains the authored override
+for irregular arrangements. The returned rect (cells + `pad`) feeds
+plane() and autoLabel() so the grouping sheet is derived, not authored. */
+export function group(origin: Pt, members: [string, ShapeFn, Kw?][],
+  opts: { cols?: number; gap?: number; pad?: number } = {}): [number, number, number, number] {
+  const { cols = Math.ceil(Math.sqrt(members.length)), gap = 1, pad = 0.6 } = opts;
+  if (members.length === 0) throw new Error("group: no members to pack");
+  if (!Number.isInteger(gap) || gap < 0) {
+    throw new Error(`group: gap must be a whole number of cells, got ${gap}`);
+  }
+  if (!Number.isInteger(cols) || cols < 1) {
+    throw new Error(`group: cols must be a positive integer, got ${cols}`);
+  }
+  const [ox, oy] = origin;
+  let cx = ox, cy = oy, rowD = 0;
+  let x1 = ox, y1 = oy;
+  members.forEach(([name, fn, kw = {}], i) => {
+    if (i > 0 && i % cols === 0) { cx = ox; cy += rowD + gap; rowD = 0; }
+    const [w, d] = (kw.cells ?? [2, 2]) as [number, number];
+    unit(name, fn, cx, cy, kw);
+    x1 = Math.max(x1, cx + w); y1 = Math.max(y1, cy + d);
+    cx += w + gap; rowD = Math.max(rowD, d);
+  });
+  return [ox - pad, oy - pad, x1 + pad, y1 + pad];
 }
 
 export function renderUnits(): string {
@@ -709,6 +753,137 @@ export interface ConnectOpts extends FlowOpts {
   exit?: Edge; enter?: Edge; via?: Pt[]; style?: string; color?: string;
 }
 
+// ---- auto flow routing ----
+const _ROUTE_CLEAR = 0.45;   // route clearance around unit cell rects, in cells
+
+function _sideDir(side: string): Pt {
+  if (side === "+x") return [1, 0];
+  if (side === "-x") return [-1, 0];
+  if (side === "+y") return [0, 1];
+  if (side === "-y") return [0, -1];
+  throw new Error(String(side));
+}
+
+/** Orthogonal route between two units' edge points, used by connect() when
+no `via` is authored. Routes on the Hanan grid of every unit's cell rect
+expanded by the clearance margin (A*, shortest length, 0.75-cell penalty
+per bend, deterministic tie-breaking), so flows detour around units instead
+of the old blind L-elbow. A clear straight line stays the plain two-point
+segment it always was. Exit/enter stubs step off the edge before routing
+begins — a full 1.0-cell stub when there is room (the arrowhead is 0.42
+cells long, and a bend at the bare clearance margin chokes the head with
+~1px of visible shaft), falling back to `clearance`; an edge flush against
+a neighbour has no stub room at all and errors rather than drawing through
+it. No route at all is a hard error: add authored `via` waypoints.
+Equal-cost detours break toward the screen-front lane (higher x+y): in
+isometric projection a back lane runs behind the blocker's top face and
+the flow disappears there. */
+export function autoVia(a: string, b: string, exit: Edge, enter: Edge): Pt[] {
+  const C = _ROUTE_CLEAR, STUB = 1.0, BEND = 0.75, EPS = 1e-9;
+  const p0 = Array.isArray(exit) ? edgePt(a, exit[0], exit[1]) : edgePt(a, exit);
+  const p1 = Array.isArray(enter) ? edgePt(b, enter[0], enter[1]) : edgePt(b, enter);
+  const d0 = _sideDir(Array.isArray(exit) ? exit[0] : exit);
+  const d1 = _sideDir(Array.isArray(enter) ? enter[0] : enter);
+  const rects = Array.from(_UNITS.values(), u => u.rect);
+  const noRoute = (): never => {
+    throw new Error(`connect '${a}' -> '${b}': no clear route between the units — `
+      + "add via waypoints");
+  };
+  // an axis-aligned segment is blocked when its box overlaps the OPEN
+  // expanded rect — running exactly on the clearance boundary is legal
+  const blocked = (u: Pt, v: Pt): boolean => rects.some(r =>
+    Math.min(u[0], v[0]) < r[2] + C - EPS && Math.max(u[0], v[0]) > r[0] - C + EPS
+    && Math.min(u[1], v[1]) < r[3] + C - EPS && Math.max(u[1], v[1]) > r[1] - C + EPS);
+  // stub run beyond the own-margin boundary must be clear of every margin
+  const stubOk = (p: Pt, d: Pt, L: number): boolean =>
+    !blocked([p[0] + d[0] * C, p[1] + d[1] * C], [p[0] + d[0] * L, p[1] + d[1] * L]);
+  // longer enter stub preferred over longer exit: the head is at the enter end
+  for (const [L0, L1] of [[STUB, STUB], [C, STUB], [STUB, C], [C, C]]) {
+    if (!stubOk(p0, d0, L0) || !stubOk(p1, d1, L1)) continue;
+    const pts = _route(p0, p1, [p0[0] + d0[0] * L0, p0[1] + d0[1] * L0],
+      [p1[0] + d1[0] * L1, p1[1] + d1[1] * L1], d0, d1, rects, blocked);
+    if (pts) return pts;
+  }
+  return noRoute();
+}
+
+function _route(p0: Pt, p1: Pt, q0: Pt, q1: Pt, d0: Pt, d1: Pt,
+  rects: [number, number, number, number][],
+  blocked: (u: Pt, v: Pt) => boolean): Pt[] | null {
+  const C = _ROUTE_CLEAR, BEND = 0.75, EPS = 1e-9;
+  // Hanan grid: expanded rect boundaries + both stub points
+  const uniq = (vals: number[]): number[] =>
+    [...new Map(vals.map(v => [v.toFixed(6), v])).values()].sort((m, n) => m - n);
+  const xs = uniq([q0[0], q1[0], ...rects.flatMap(r => [r[0] - C, r[2] + C])]);
+  const ys = uniq([q0[1], q1[1], ...rects.flatMap(r => [r[1] - C, r[3] + C])]);
+  const xi = (v: number): number => xs.findIndex(x => Math.abs(x - v) < 1e-6);
+  const yi = (v: number): number => ys.findIndex(y => Math.abs(y - v) < 1e-6);
+  // tie-break bias: prefer front lanes (higher x+y). Orders of magnitude
+  // below the smallest real length/bend difference, so it only decides ties.
+  const FRONT = xs[xs.length - 1] + ys[ys.length - 1];
+  const TIE = 1e-5;
+  const DIRS: Pt[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const di = (d: Pt): number => DIRS.findIndex(e => e[0] === d[0] && e[1] === d[1]);
+  // A* over (grid node, incoming direction); h = Manhattan distance to q1
+  const W = xs.length;
+  const key = (i: number, j: number, k: number): number => (j * W + i) * 4 + k;
+  const best = new Map<number, number>();
+  const from = new Map<number, number>();
+  const h = (i: number, j: number): number =>
+    Math.abs(xs[i] - q1[0]) + Math.abs(ys[j] - q1[1]);
+  const start = key(xi(q0[0]), yi(q0[1]), di(d0));
+  best.set(start, 0);
+  const open: [number, number][] = [[h(xi(q0[0]), yi(q0[1])), start]];   // [f, key]
+  const goalI = xi(q1[0]), goalJ = yi(q1[1]);
+  let goalKey = -1;
+  while (open.length) {
+    let m = 0;   // deterministic min-extract: smallest f, then smallest key
+    for (let n = 1; n < open.length; n++) {
+      if (open[n][0] < open[m][0] - EPS
+        || (Math.abs(open[n][0] - open[m][0]) <= EPS && open[n][1] < open[m][1])) m = n;
+    }
+    const [, cur] = open.splice(m, 1)[0];
+    const k = cur % 4, i = ((cur - k) / 4) % W, j = ((cur - k) / 4 - i) / W;
+    const g = best.get(cur)!;
+    if (i === goalI && j === goalJ) {
+      // arriving opposite the final stub would double back onto it
+      if (DIRS[k][0] === d1[0] && DIRS[k][1] === d1[1]) continue;
+      goalKey = cur; break;
+    }
+    for (let nk = 0; nk < 4; nk++) {
+      const ni = i + DIRS[nk][0], nj = j + DIRS[nk][1];
+      if (ni < 0 || ni >= W || nj < 0 || nj >= ys.length) continue;
+      const u: Pt = [xs[i], ys[j]], v: Pt = [xs[ni], ys[nj]];
+      if (blocked(u, v)) continue;
+      const len = Math.abs(v[0] - u[0]) + Math.abs(v[1] - u[1]);
+      const ng = g + len + (nk === k ? 0 : BEND)
+        + TIE * len * (FRONT - (u[0] + u[1] + v[0] + v[1]) / 2);
+      const nkey = key(ni, nj, nk);
+      if (ng < (best.get(nkey) ?? Infinity) - EPS) {
+        best.set(nkey, ng); from.set(nkey, cur);
+        open.push([ng + h(ni, nj), nkey]);
+      }
+    }
+  }
+  if (goalKey < 0) return null;
+  const rev: Pt[] = [];
+  for (let cur: number | undefined = goalKey; cur !== undefined; cur = from.get(cur)) {
+    const k = cur % 4, i = ((cur - k) / 4) % W, j = ((cur - k) / 4 - i) / W;
+    rev.push([xs[i], ys[j]]);
+  }
+  const pts = [p0, ...rev.reverse(), p1];
+  const out_: Pt[] = [pts[0]];   // collapse duplicates and collinear runs
+  for (let n = 1; n < pts.length - 1; n++) {
+    const [px, py] = out_[out_.length - 1], [cx_, cy_] = pts[n], [nx, ny] = pts[n + 1];
+    if (Math.abs(cx_ - px) < EPS && Math.abs(cy_ - py) < EPS) continue;
+    if ((Math.abs(px - cx_) < EPS && Math.abs(cx_ - nx) < EPS)
+      || (Math.abs(py - cy_) < EPS && Math.abs(cy_ - ny) < EPS)) continue;
+    out_.push(pts[n]);
+  }
+  out_.push(pts[pts.length - 1]);
+  return out_;
+}
+
 export function connect(a: string, b: string, opts: ConnectOpts = {}): string {
   const { via = null, style = "request", color = null, ...fkw } = opts;
   let { exit, enter } = opts;
@@ -719,22 +894,109 @@ export function connect(a: string, b: string, opts: ConnectOpts = {}): string {
   if (enter == null) enter = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "-x" : "+x") : (dy > 0 ? "-y" : "+y");
   const p0 = Array.isArray(exit) ? edgePt(a, exit[0], exit[1]) : edgePt(a, exit);
   const p1 = Array.isArray(enter) ? edgePt(b, enter[0], enter[1]) : edgePt(b, enter);
-  let pts_: Pt[] = [p0, ...(via ?? []), p1];
-  if (via == null && Math.abs(p0[0] - p1[0]) > 1e-9 && Math.abs(p0[1] - p1[1]) > 1e-9) {
-    const ex = Array.isArray(exit) ? exit[0] : exit;        // L-route: leave along the exit axis
-    pts_ = [p0, (ex === "-x" || ex === "+x") ? [p1[0], p0[1]] : [p0[0], p1[1]], p1];
-  }
+  // authored via wins; otherwise route around every unit automatically
+  const pts_: Pt[] = via != null ? [p0, ...via, p1] : autoVia(a, b, exit, enter);
   const kw: FlowOpts = { ...STYLES[style], ...fkw };
   return flow(pts_, color || (style === "data" ? FLOW2 : FLOW), kw);
 }
 
 // ---- narrative ----
-// typical unit heights for silhouette estimation (kw "h" overrides)
-const _DEF_H: Record<string, number> = {
-  box: 0.95, cyl: 1.25, rack: 1.15, building: 2.3,
-  padlock: 1.6, users: 1.3, slab: 0.22, panel: 0.12,
-  wall: 1.0, queue: 0.5, store: 0.84,
-};
+/** Per-shape collision properties, declared ON the shape function itself —
+never looked up by fn.name (name lookups break under minification and force
+engine edits for every new shape). `defH` is the typical silhouette height
+(kw "h" overrides per unit; 1.0 if undeclared). `hull` (optional) returns a
+screen hull tighter than the footprint box, for shapes much slimmer than
+their cells — cyl's drum is the exemplar. `defS` is the shape's default
+footprint size, needed by the unit registry whenever it differs from the
+generic 1.4 (building's 1.1 went undeclared once: the registry centered
+and hulled a 1.4 footprint around a 1.1 drawing, 12px of phantom air).
+`body` (optional) returns the
+solid's own silhouette — no plate ring — used only for chip tip snapping
+(see _bodyHull); the default footprint-at-height hull is right for boxy
+shapes. New shapes: declare defH; add hull/body only when the defaults
+carry phantom air that labels or chips care about. */
+export interface ShapeProps {
+  defH?: number;
+  defS?: number;
+  hull?: (x: number, y: number, s: number, kw: Kw) => Pt[];
+  body?: (x: number, y: number, s: number, kw: Kw) => Pt[];
+}
+const _shapeProps = (fn: unknown): ShapeProps => fn as ShapeProps;
+
+/** cyl's tight hull: plate corners + the drum's actual screen box. The
+footprint box has ~28px of phantom air beside the drum — labels there are
+fine, and chips snapped to it would float far off the drum. */
+function _cylHull(x: number, y: number, s: number, kw: Kw): Pt[] {
+  const r = kw.r ?? 0.5, h = kw.h ?? 1.25;
+  const cx = x + s / 2, cy = y + s / 2;
+  const [Xc, Yt] = iso(cx, cy, h); const Yb = iso(cx, cy, 0)[1];
+  const rx = 1.2247 * r * U, ry = 0.577 * rx;
+  const m = PLATE_M;
+  return _hull([iso(x - m, y - m), iso(x + s + m, y - m),
+    iso(x + s + m, y + s + m), iso(x - m, y + s + m),
+    [Xc - rx, Yt - ry], [Xc + rx, Yt - ry], [Xc - rx, Yb + ry], [Xc + rx, Yb + ry]]);
+}
+
+/** cyl's body for chip snapping: the drum's screen silhouette alone — the
+ground footprint corners are plate-adjacent air the tip must not stop in.
+Sampled arc points, not the drum's bounding box: the box corners overshoot
+the elliptical caps by ~9px and a diagonal-approach tip stops in that air
+(hybrid's chip 5 pointed at the plate instead of the drum's lower arc). */
+function _cylBody(x: number, y: number, s: number, kw: Kw): Pt[] {
+  const r = kw.r ?? 0.5, h = kw.h ?? 1.25;
+  const cx = x + s / 2, cy = y + s / 2;
+  const [Xc, Yt] = iso(cx, cy, h); const Yb = iso(cx, cy, 0)[1];
+  const rx = 1.2247 * r * U, ry = 0.577 * rx;
+  const pts: Pt[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = (i / 12) * Math.PI;
+    pts.push([Xc + rx * Math.cos(t), Yt - ry * Math.sin(t)]);   // top cap arc
+    pts.push([Xc + rx * Math.cos(t), Yb + ry * Math.sin(t)]);   // bottom cap arc
+  }
+  return pts;
+}
+
+/** wall's body for chip snapping: the brick slab it actually draws — a
+1.30 x 0.40 sliver of the 1.4 footprint (offsets mirror wall()). */
+function _wallBody(x: number, y: number, s: number, kw: Kw): Pt[] {
+  const h = kw.h ?? 1.0;
+  const bx = x + 0.05, by = y + 0.50, sx = 1.30, sy = 0.40;
+  return [iso(bx, by, h), iso(bx + sx, by, h), iso(bx + sx, by + sy, h),
+    iso(bx, by + sy, h), iso(bx, by), iso(bx + sx, by),
+    iso(bx + sx, by + sy), iso(bx, by + sy)];
+}
+
+/** users' body for chip snapping: the person + laptop + phone ensemble it
+actually draws (offsets mirror users()) — the footprint box is mostly the
+empty plate around them. The person is a screen-space billboard: head circle
+(r 7.5, top at anchor−63.5) over an anchor±11 torso. */
+function _usersBody(x: number, y: number, _s: number, _kw: Kw): Pt[] {
+  const [Xp, Yp] = iso(x + 0.40, y + 0.40);
+  const pts: Pt[] = [[Xp - 7.5, Yp - 63.5], [Xp + 7.5, Yp - 63.5],
+    [Xp - 11, Yp - 51], [Xp + 11, Yp - 51], [Xp - 11, Yp], [Xp + 11, Yp]];
+  const px_ = x + 1.02, py_ = y + 0.16;   // phone slab 0.34 x 0.10 x 0.72
+  for (const [gx, gy] of [[px_, py_], [px_ + 0.34, py_],
+    [px_ + 0.34, py_ + 0.10], [px_, py_ + 0.10]] as Pt[])
+    for (const z of [0, 0.72]) pts.push(iso(gx, gy, z));
+  const lx = x + 0.16, ly = y + 0.70;     // laptop base 0.95 x 0.60 + screen
+  for (const [gx, gy] of [[lx, ly], [lx + 0.95, ly],
+    [lx + 0.95, ly + 0.60], [lx, ly + 0.60]] as Pt[])
+    for (const z of [0, 0.07]) pts.push(iso(gx, gy, z));
+  pts.push(iso(lx + 0.03, ly - 0.10, 0.71), iso(lx + 0.92, ly - 0.10, 0.71));
+  return pts;
+}
+
+Object.assign(box,      { defH: 0.95 });
+Object.assign(cyl,      { defH: 1.25, hull: _cylHull, body: _cylBody });
+Object.assign(rack,     { defH: 1.15 });
+Object.assign(building, { defH: 2.3, defS: 1.1 });
+Object.assign(padlock,  { defH: 1.6 });
+Object.assign(users,    { defH: 1.3, body: _usersBody });
+Object.assign(slab,     { defH: 0.22 });
+Object.assign(panel,    { defH: 0.12 });
+Object.assign(wall,     { defH: 1.0, body: _wallBody });
+Object.assign(queue,    { defH: 0.5 });
+Object.assign(store,    { defH: 0.84 });
 
 function _hull(points: Pt[]): Pt[] {
   const seen = new Set<string>();
@@ -764,7 +1026,7 @@ footprint corners at the unit's height — what the shape visually occupies,
 which is far more than its ground rect for tall shapes. */
 function _silhouette(name: string): Pt[] {
   const { fn, dx: x, dy: y, s, kw } = _unit(name);
-  const h = kw.h ?? _DEF_H[fn.name] ?? 1.0;
+  const h = kw.h ?? _shapeProps(fn).defH ?? 1.0;
   const m = PLATE_M;
   return _hull([iso(x - m, y - m), iso(x + s + m, y - m),
     iso(x + s + m, y + s + m), iso(x - m, y + s + m),
@@ -794,16 +1056,25 @@ function _numShape(n: number, cx: number, cy: number, ext: -1 | 0 | 1): string {
 /** Numbered marker. to = unit name or [gx, gy]: grows a pointer tail
 from the circle toward what it labels (Azure-style pin, not a bare dot).
 The authored position sets only the approach direction; the chip slides
-along that ray so the tip sits exactly `gap` px off the unit's screen
-silhouette (plate + solid), however close or far it was authored. */
+along that ray so the tip sits exactly `gap` px off the unit's BODY
+silhouette (the solid alone — see _bodyHull), however close or far it was
+authored. */
+// registered screen footprint of every chip balloon, checked by checkChips()
+// at write() time. `strict` chips (bare, or aimed at a unit by name) are
+// checked against units and labels too; point-target chips are the authored
+// escape hatch that deliberately aims into things (label text, a unit face),
+// so they register bubble-only and skip those two checks.
+const _CHIPS: { n: number; poly: Pt[]; strict: boolean; target?: string }[] = [];
+
 export function chip(n: number, x: number, y: number, to: string | Pt | null = null, gap = 5.0): string {
   let [X, Y] = iso(x, y);
   let ext: -1 | 0 | 1 = 0;   // bare chips center the bubble on the point
+  let tip: Pt | null = null;
   const g: string[] = [];
   if (to != null) {
     let TX: number, TY: number;
     if (typeof to === "string") {
-      const hull = _collisionHull(to);
+      const hull = _bodyHull(to);
       TX = hull.reduce((a, p) => a + p[0], 0) / hull.length;
       TY = hull.reduce((a, p) => a + p[1], 0) / hull.length;
       const dx = TX - X, dy = TY - Y;
@@ -830,7 +1101,7 @@ export function chip(n: number, x: number, y: number, to: string | Pt | null = n
     const a = Math.atan2(uy, ux);
     // auto-snap: authored position sets only the DIRECTION; the chip
     // slides along that ray so the tip sits exactly `gap` px off the edge
-    const tip: Pt = [TX - ux * gap, TY - uy * gap];
+    tip = [TX - ux * gap, TY - uy * gap];
     X = tip[0] - ux * 19; Y = tip[1] - uy * 19;
     ext = ux > 0 ? -1 : 1;   // multi-digit body grows away from the target
     const b1: Pt = [X + 9.5 * Math.cos(a + 0.55), Y + 9.5 * Math.sin(a + 0.55)];
@@ -838,17 +1109,67 @@ export function chip(n: number, x: number, y: number, to: string | Pt | null = n
     g.push(poly([tip, b1, b2], { fill: A1 }));
   }
   g.push(_numShape(n, X, Y, ext));
+  const strict = to == null || typeof to === "string";
+  const d = String(n).length, hw = 3.6 * d + 7.4, c = X + ext * (hw - 11);
+  const corners: Pt[] = [[c - hw, Y - 11], [c + hw, Y - 11], [c + hw, Y + 11], [c - hw, Y + 11]];
+  _CHIPS.push({ n, strict, poly: _hull(strict && tip ? [...corners, tip] : corners),
+    target: typeof to === "string" ? to : undefined });
   return g.join("");
+}
+
+/** Hard error when any chip balloon overlaps a unit hull, a flow route, a
+label, another chip, or hangs off the canvas — run automatically at write()
+time. Point-target chips (the authored aim-into-things escape hatch: label
+text, unit faces, flow midpoints) are only checked against other chips and
+the canvas — their placement is eyeball-verified by definition. */
+export function checkChips(): void {
+  for (let i = 0; i < _CHIPS.length; i++) {
+    const { n, poly: p, strict, target } = _CHIPS[i];
+    for (const [px, py] of p) {
+      if (px < 8 || px > _CANVAS_W - 8 || py < 8 || py > _CANVAS_H - 8) {
+        throw new Error(`chip ${n}: balloon runs off the ${_CANVAS_W}x${_CANVAS_H} canvas — move its approach point`);
+      }
+    }
+    if (strict) {
+      // the chip's own target is exempt: the tip deliberately hugs its body,
+      // inside the plate-inclusive collision hull
+      for (const name of _UNITS.keys()) {
+        if (name === target) continue;
+        if (_polysOverlap(p, _collisionHull(name))) {
+          throw new Error(`chip ${n}: balloon overlaps unit '${name}' — move its approach point`);
+        }
+      }
+      for (const l of _LABELS) {
+        if (_polysOverlap(p, l.quad)) {
+          throw new Error(`chip ${n}: balloon overlaps label "${l.txt}" — move its approach point`);
+        }
+      }
+      for (const route of _FLOWPTS) {
+        for (let s = 0; s < route.length - 1; s++) {
+          if (_segHitsPoly(route[s], route[s + 1], p)) {
+            throw new Error(`chip ${n}: a flow route runs through its balloon — move its approach point`);
+          }
+        }
+      }
+    }
+    for (let j = 0; j < i; j++) {
+      if (_polysOverlap(p, _CHIPS[j].poly)) {
+        throw new Error(`chip ${n}: balloon overlaps chip ${_CHIPS[j].n} — move an approach point`);
+      }
+    }
+  }
 }
 
 // One declaration per annotated unit drives BOTH its numbered chip and its
 // legend entry — numbers are assigned in declaration order, so chips and the
 // legend can never fall out of sync (they used to be three hand-synced pieces).
-const _ANNOTS: [string, string, string, Pt][] = [];
+const _ANNOTS: [string, string, string, Pt | null][] = [];
 
 /** Register unit `name` for annotation: chip approaching from grid point
-`approach`, legend entry (title, desc). Declaration order = number order. */
-export function annotate(name: string, title: string, desc: string, approach: Pt): void {
+`approach` — or, when omitted, from a clear side picked automatically at
+annotations() time. Legend entry (title, desc). Declaration order = number
+order. */
+export function annotate(name: string, title: string, desc: string, approach: Pt | null = null): void {
   if (!_UNITS.has(name)) {
     throw new Error(`annotate '${name}': no such unit — declare unit() first`);
   }
@@ -858,10 +1179,79 @@ export function annotate(name: string, title: string, desc: string, approach: Pt
   _ANNOTS.push([name, title, desc, approach]);
 }
 
+// would this chip balloon be legal where it stands? Same battery as
+// checkChips' strict path; used to pick auto approaches before emitting
+function _chipSpotClear(p: Pt[], target?: string): boolean {
+  for (const [px, py] of p) {
+    if (px < 8 || px > _CANVAS_W - 8 || py < 8 || py > _CANVAS_H - 8) return false;
+  }
+  for (const name of _UNITS.keys()) {
+    if (name === target) continue;
+    if (_polysOverlap(p, _collisionHull(name))) return false;
+  }
+  for (const l of _LABELS) {
+    if (_polysOverlap(p, l.quad)) return false;
+  }
+  for (const route of _FLOWPTS) {
+    for (let s = 0; s < route.length - 1; s++) {
+      if (_segHitsPoly(route[s], route[s + 1], p)) return false;
+    }
+  }
+  for (const ch of _CHIPS) {
+    if (_polysOverlap(p, ch.poly)) return false;
+  }
+  return true;
+}
+
+// pick a clear approach anchor for chip `n` on unit `name`: cast rays
+// through the BODY hull centroid (the same hull chip() snaps the tip to) —
+// screen-horizontal first so the balloon sits beside the solid, then the
+// iso-grid diagonals, then steeper, verticals last. First direction whose
+// balloon clears everything wins; the returned grid point feeds chip()
+// unchanged.
+function _autoApproach(n: number, name: string, railX: number): Pt {
+  const hull = _bodyHull(name);
+  const cx = hull.reduce((a, p) => a + p[0], 0) / hull.length;
+  const cy = hull.reduce((a, p) => a + p[1], 0) / hull.length;
+  const d = String(n).length, hw = 3.6 * d + 7.4;
+  for (const deg of [0, 180, 30, 150, 330, 210, 60, 120, 300, 240, 90, 270]) {
+    const th = deg * Math.PI / 180;
+    const ux = Math.cos(th), uy = Math.sin(th);   // pointing direction, toward the unit
+    let tExit: number | null = null;              // centroid -> boundary along -u
+    for (let i = 0; i < hull.length; i++) {
+      const [px, py] = hull[i], [qx, qy] = hull[(i + 1) % hull.length];
+      const ex = qx - px, ey = qy - py;
+      const den = -ux * ey + uy * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const t_ = ((px - cx) * ey - (py - cy) * ex) / den;
+      const s_ = (-(px - cx) * uy + (py - cy) * ux) / den;
+      if (t_ > 1e-9 && -1e-6 <= s_ && s_ <= 1 + 1e-6) {
+        if (tExit === null || t_ < tExit) tExit = t_;
+      }
+    }
+    if (tExit === null) continue;
+    const H: Pt = [cx - ux * tExit, cy - uy * tExit];
+    const tip: Pt = [H[0] - ux * 5, H[1] - uy * 5];
+    const X = tip[0] - ux * 19, Y = tip[1] - uy * 19;
+    const c = X + (ux > 0 ? -1 : 1) * (hw - 11);
+    const p = _hull([[c - hw, Y - 11], [c + hw, Y - 11], [c + hw, Y + 11], [c - hw, Y + 11], tip]);
+    if (p.some(pt => pt[0] > railX - 8)) continue;   // stay clear of the legend rail
+    if (!_chipSpotClear(p, name)) continue;
+    const AX = H[0] - ux * 70, AY = H[1] - uy * 70;  // any ray point past the bubble
+    const u_ = (AX - OX) / CXu, v_ = (AY - OY) / CYu;
+    return [(u_ + v_) / 2, (v_ - u_) / 2];
+  }
+  throw new Error(`annotate '${name}': no clear chip approach around the unit — `
+    + "pass an explicit approach point");
+}
+
 /** Emit every annotated unit's chip plus the matching legend rail. */
 export function annotations(opts: { footer?: string | null; x?: number; w?: number } = {}): string {
   const { footer = null, x = 1054, w = 346 } = opts;
-  const g = _ANNOTS.map(([name, , , [ax, ay]], i) => chip(i + 1, ax, ay, name));
+  const g = _ANNOTS.map(([name, , , appr], i) => {
+    const [ax, ay] = appr ?? _autoApproach(i + 1, name, x);
+    return chip(i + 1, ax, ay, name);
+  });
   g.push(legend(_ANNOTS.map(([, t, d]) => [t, d] as [string, string]), { footer, x, w }));
   return g.join("");
 }
@@ -888,6 +1278,18 @@ export function legend(entries: [string, string][], opts: { footer?: string | nu
   const dMax = String(entries.length).length;
   const edge = Math.max(43, 10 + 2 * (3.6 * dMax + 7.4));
   const tx = x + edge + 13;
+  // width guard, mirroring the height guard below: monospace em-box advance
+  // (0.6em) against the rail's right edge — overflow is a hard error, not a
+  // silent clip past the rail (shipped twice as clipped footers)
+  const guardW = (s: string, sx: number, size: number): void => {
+    // measure rendered glyphs: an XML entity (&#183; etc.) is one glyph
+    const glyphs = s.replace(/&#\d+;|&[a-z]+;/gi, "x").length;
+    const right = sx + glyphs * size * 0.6;
+    if (right > x + w - 16) {
+      throw new Error(`legend text "${s}" reaches x=${pyf(right, 0)} but the rail ends at `
+        + `x=${x + w} (needs 16px margin) — shorten it or widen the rail`);
+    }
+  };
   const g = [`<rect x="${x}" y="0" width="${w}" height="${_CANVAS_H}" fill="${RAIL}"/>`,
     `<text x="${x + 32}" y="48" font-family=${MONOQ} font-size="13" font-weight="700" `
     + `fill="${INK2}" letter-spacing="4">LEGEND</text>`];
@@ -895,10 +1297,12 @@ export function legend(entries: [string, string][], opts: { footer?: string | nu
   for (let i = 0; i < entries.length; i++) {
     const [t, d] = entries[i];
     g.push(_numShape(i + 1, x + edge - 11, y, -1));
+    guardW(t, tx, 13.5);
     g.push(`<text x="${tx}" y="${y + 4}" font-family=${MONOQ} font-size="13.5" `
       + `font-weight="700" fill="${INK}">${t}</text>`);
     let yy = y + 20;
     for (const ln of wrap(d)) {
+      guardW(ln, tx, 11.5);
       g.push(`<text x="${tx}" y="${yy}" font-family=${MONOQ} font-size="11.5" `
         + `fill="${INK2}">${ln}</text>`); yy += 15;
     }
@@ -907,6 +1311,7 @@ export function legend(entries: [string, string][], opts: { footer?: string | nu
   let bottom = y - 20;
   if (footer) {
     bottom = y + 8;
+    guardW(footer, x + 32, 10.5);
     g.push(`<text x="${x + 32}" y="${bottom}" font-family=${MONOQ} font-size="10.5" `
       + `fill="${INK2}">${footer}</text>`);
   }
@@ -925,6 +1330,13 @@ export function legend(entries: [string, string][], opts: { footer?: string | nu
 // shapes drawn directly (outside unit()) have no known silhouette.
 const _LABELS: { txt: string; quad: Pt[] }[] = [];
 const _FLOWPTS: Pt[][] = [];
+// arrowhead triangles (projected): _FLOWPTS only covers the centerline, but
+// the head flares 0.21 cells (~8px) either side — ink a label can sit on
+// while clearing every route segment
+const _FLOWHEADS: Pt[][] = [];
+// projected outlines of ground planes (z=0 only) — checked against arrowhead
+// extremities and label quads by checkPlanes()/checkLabels()
+const _PLANES: Pt[][] = [];
 
 function _project(poly: Pt[], ax: Pt): [number, number] {
   let lo = Infinity, hi = -Infinity;
@@ -977,6 +1389,18 @@ function _segsCross(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
   return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
 }
 
+function _segPtDist(a: Pt, b: Pt, p: Pt): number {
+  const ex = b[0] - a[0], ey = b[1] - a[1];
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * ex + (p[1] - a[1]) * ey) / (ex * ex + ey * ey || 1)));
+  return Math.hypot(p[0] - (a[0] + t * ex), p[1] - (a[1] + t * ey));
+}
+
+function _segSegDist(a: Pt, b: Pt, c: Pt, d: Pt): number {
+  if (_segsCross(a, b, c, d)) return 0;
+  return Math.min(_segPtDist(a, b, c), _segPtDist(a, b, d),
+    _segPtDist(c, d, a), _segPtDist(c, d, b));
+}
+
 function _segHitsPoly(a: Pt, b: Pt, poly: Pt[]): boolean {
   if (_inConvex(a, poly) || _inConvex(b, poly)) return true;
   for (let i = 0; i < poly.length; i++) {
@@ -986,25 +1410,27 @@ function _segHitsPoly(a: Pt, b: Pt, poly: Pt[]): boolean {
 }
 
 /** Collision hull for a unit — used by BOTH the label collision check and
-chip snapping. The naive _silhouette (full footprint at height) false-
-positives on cylinders: the drum is only r-wide at the footprint's center,
-leaving phantom hull at the corners — labels there are fine and chips
-snapped to it float far off the drum. cyl gets plate corners + the drum's
-actual screen box; other shapes fill their footprint closely enough that
-_silhouette is honest. */
+chip snapping. A shape that declares a tight `hull` (see ShapeProps) gets
+it; every other shape fills its footprint closely enough that _silhouette
+(footprint box at declared height) is honest. */
 function _collisionHull(name: string): Pt[] {
   const { fn, dx: x, dy: y, s, kw } = _unit(name);
-  if (fn.name === "cyl") {
-    const r = kw.r ?? 0.5, h = kw.h ?? 1.25;
-    const cx = x + s / 2, cy = y + s / 2;
-    const [Xc, Yt] = iso(cx, cy, h); const Yb = iso(cx, cy, 0)[1];
-    const rx = 1.2247 * r * U, ry = 0.577 * rx;
-    const m = PLATE_M;
-    return _hull([iso(x - m, y - m), iso(x + s + m, y - m),
-      iso(x + s + m, y + s + m), iso(x - m, y + s + m),
-      [Xc - rx, Yt - ry], [Xc + rx, Yt - ry], [Xc - rx, Yb + ry], [Xc + rx, Yb + ry]]);
-  }
-  return _silhouette(name);
+  const tight = _shapeProps(fn).hull;
+  return tight ? tight(x, y, s, kw) : _silhouette(name);
+}
+
+/** Body silhouette for a unit — the solid alone, no plate ring. Chip tips
+snap to THIS: the collision hull's side edges slant out to the plate's
+ground corners, and a tip stopped 5px off that slant floats in mid-height
+air (a tall building put hybrid's chip 1 on the estate boundary ~15px off the
+tower wall). Default: footprint corners at ground and declared height. */
+function _bodyHull(name: string): Pt[] {
+  const { fn, dx: x, dy: y, s, kw } = _unit(name);
+  const body = _shapeProps(fn).body;
+  if (body) return _hull(body(x, y, s, kw));
+  const h = kw.h ?? _shapeProps(fn).defH ?? 1.0;
+  return _hull([iso(x, y), iso(x + s, y), iso(x + s, y + s), iso(x, y + s),
+    iso(x, y, h), iso(x + s, y, h), iso(x + s, y + s, h), iso(x, y + s, h)]);
 }
 
 /** Error if any registered label's screen extent intersects a unit's
@@ -1025,33 +1451,197 @@ export function checkLabels(): void {
         }
       }
     }
-  }
-}
-
-/** Resolve an output path for `name`: $ISOKIT_OUT if set, else the first
-`isokit.local` file found walking up from cwd (its first line = output
-dir), else ./out. The directory is created if missing. */
-export function out(name: string): string {
-  let d = process.env.ISOKIT_OUT;
-  if (!d) {
-    let p = process.cwd();
-    while (true) {
-      const f = path.join(p, "isokit.local");
-      if (fs.existsSync(f)) { d = fs.readFileSync(f, "utf8").trim(); break; }
-      const parent = path.dirname(p);
-      if (parent === p) break;
-      p = parent;
+    for (const head of _FLOWHEADS) {
+      if (_polysOverlap(quad, head)) {
+        throw new Error(`label "${txt}" sits on a flow arrowhead — `
+          + "move the label clear or reroute the flow");
+      }
+    }
+    if (!_quadClearOfPlaneStrokes(quad)) {
+      throw new Error(`label "${txt}" sits on a plane outline — `
+        + "move the label clear of the line");
     }
   }
-  d = d || path.join(process.cwd(), "out");
-  if (d === "~" || d.startsWith("~/")) d = path.join(os.homedir(), d.slice(1));
-  fs.mkdirSync(d, { recursive: true });
-  return path.join(d, name);
 }
 
-export function write(pathOut: string, parts: string[]): void {
+// length of the portion of segment a-b lying inside convex poly
+function _chordInPoly(a: Pt, b: Pt, poly: Pt[]): number {
+  const n = poly.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const [x1, y1] = poly[i], [x2, y2] = poly[(i + 1) % n];
+    area += x1 * y2 - x2 * y1;
+  }
+  const s = area > 0 ? 1 : -1;   // orient so "inside" is a consistent side
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  let t0 = 0, t1 = 1;
+  for (let i = 0; i < n; i++) {
+    const p = poly[i], q = poly[(i + 1) % n];
+    const nx = s * (p[1] - q[1]), ny = s * (q[0] - p[0]);   // inward normal
+    const fa = nx * (a[0] - p[0]) + ny * (a[1] - p[1]);
+    const d = nx * dx + ny * dy;
+    if (Math.abs(d) < 1e-12) { if (fa < 0) return 0; continue; }
+    const t = -fa / d;
+    if (d > 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t);
+    if (t0 > t1) return 0;
+  }
+  return (t1 - t0) * Math.hypot(dx, dy);
+}
+
+// A plane line CROSSING a label at the iso angle cuts a short chord through
+// the em box (~1.2x its thickness at 60 deg) — the benign shipped look. A
+// line running ALONG the label lies under the ink for a long stretch — the
+// desync defect that shipped a caption on its plane's edge. The boundary is
+// chord > 1.8x the quad's short side; the test is exact (unpadded) because
+// the canonical caption spot hugs its own plane's line with ~2px of air.
+function _quadClearOfPlaneStrokes(quad: Pt[]): boolean {
+  let thick = Infinity;
+  for (let i = 0; i < quad.length; i++) {
+    const [x1, y1] = quad[i], [x2, y2] = quad[(i + 1) % quad.length];
+    thick = Math.min(thick, Math.hypot(x2 - x1, y2 - y1));
+  }
+  for (const pl of _PLANES) {
+    for (let i = 0; i < pl.length; i++) {
+      if (_chordInPoly(pl[i], pl[(i + 1) % pl.length], quad) > 1.8 * thick) return false;
+    }
+  }
+  return true;
+}
+
+// ---- auto label placement (Phase 2 step 2) ----
+
+// is this label quad clear of every obstacle checkLabels() knows about,
+// plus labels already placed? Same predicates as checkLabels, so a
+// successful placement always survives write().
+function _labelSpotClear(quad: Pt[]): boolean {
+  for (const [px, py] of quad) {   // a plane can run off-canvas; its label can't
+    if (px < 8 || px > _CANVAS_W - 8 || py < 8 || py > _CANVAS_H - 8) return false;
+  }
+  for (const name of _UNITS.keys()) {
+    if (_polysOverlap(quad, _collisionHull(name))) return false;
+  }
+  for (const route of _FLOWPTS) {
+    for (let i = 0; i < route.length - 1; i++) {
+      if (_segHitsPoly(route[i], route[i + 1], quad)) return false;
+    }
+  }
+  for (const head of _FLOWHEADS) {
+    if (_polysOverlap(quad, head)) return false;
+  }
+  for (const l of _LABELS) {
+    if (_polysOverlap(quad, l.quad)) return false;
+  }
+  return true;
+}
+
+// offset every edge outward by exactly `pad` px, beveled corners (two offset
+// points per vertex) — a centroid scale barely widens a long thin quad's
+// short sides, and mitered corners overshoot at this quad's 60-degree corners
+function _inflate(quad: Pt[], pad: number): Pt[] {
+  if (!pad) return quad;
+  const n = quad.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const [x1, y1] = quad[i], [x2, y2] = quad[(i + 1) % n];
+    area += x1 * y2 - x2 * y1;
+  }
+  const s = area > 0 ? 1 : -1;
+  const nor = (a: Pt, b: Pt): Pt => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    return [s * dy / L, -s * dx / L];
+  };
+  return quad.flatMap((p, i) => {
+    const n1 = nor(quad[(i + n - 1) % n], p), n2 = nor(p, quad[(i + 1) % n]);
+    return [[p[0] + pad * n1[0], p[1] + pad * n1[1]],
+            [p[0] + pad * n2[0], p[1] + pad * n2[1]]] as Pt[];
+  });
+}
+
+/** Auto-placed plane label: finds a clear anchor for `txt` along the
+plane's edges — top edge first (the exemplar caption convention), then
+left, bottom, right — walking each edge in 0.25-grid steps from its
+canonical corner, 0.3 inside the outline. If no inside spot is clear, a
+fallback ring walks the SAME edges 0.45 OUTSIDE the plane (the exemplar's
+crowded-plane move: the gauntlet's DATA TIER floats in the air beside its
+plane). Candidates are tested against every unit's collision hull, every
+flow route, and every label already placed, inflated by 4px — never the
+bare predicate: checkLabels() tolerates ~3px of em-box slack and outline
+strokes aren't hulled, so an unpadded test would ship ink kissing a plate
+line. No fitting edge or no clear spot is a hard error. Call it AFTER
+declaring units and flows — it can only avoid what already exists.
+planeLabel() remains the manual override for authored placement. */
+export function autoLabel(txt: string, rect: [number, number, number, number],
+  opts: LabelOpts = {}): string {
+  const [x0, y0, x1, y1] = rect;
+  const size = opts.size ?? 15, ls = opts.ls ?? 2.5;
+  const len = (txt.length * size * 0.6 + (txt.length - 1) * ls) / U;  // grid units
+  const M = 0.3, STEP = 0.25;
+  const spanX = (x1 - x0) - 2 * M - len;
+  const spanY = (y1 - y0) - 2 * M - len;
+  const cands: [number, number, "x" | "y"][] = [];
+  if (spanX >= 0) for (let t = 0; t <= spanX + 1e-9; t += STEP) cands.push([x0 + M + t, y0 + M, "x"]);
+  if (spanY >= 0) for (let t = 0; t <= spanY + 1e-9; t += STEP) cands.push([x0 + M, y1 - M - t, "y"]);
+  if (spanX >= 0) for (let t = 0; t <= spanX + 1e-9; t += STEP) cands.push([x0 + M + t, y1 - M, "x"]);
+  if (spanY >= 0) for (let t = 0; t <= spanY + 1e-9; t += STEP) cands.push([x1 - M, y1 - M - t, "y"]);
+  const OUT = 0.45;   // outside fallback ring: left, bottom, right, top
+  if (spanY >= 0) for (let t = 0; t <= spanY + 1e-9; t += STEP) cands.push([x0 - OUT, y1 - M - t, "y"]);
+  if (spanX >= 0) for (let t = 0; t <= spanX + 1e-9; t += STEP) cands.push([x0 + M + t, y1 + OUT, "x"]);
+  if (spanY >= 0) for (let t = 0; t <= spanY + 1e-9; t += STEP) cands.push([x1 + OUT, y1 - M - t, "y"]);
+  if (spanX >= 0) for (let t = 0; t <= spanX + 1e-9; t += STEP) cands.push([x0 + M + t, y0 - OUT, "x"]);
+  if (!cands.length) {
+    throw new Error(`autoLabel "${txt}": label is ${pyf(len, 2)} grid units long and does `
+      + `not fit any edge of plane (${x0}, ${y0})-(${x1}, ${y1}) with 0.3 margin — `
+      + "shorten it, shrink the type, or enlarge the plane");
+  }
+  // PAD 4 nets ~1px of true em-box clearance past checkLabels' 3px slack,
+  // and the em box itself overstates the ink — never test unpadded
+  const PAD = 4;
+  for (const [ax, ay, axis] of cands) {
+    const quad = _labelQuad(txt, ax, ay, axis, size, ls);
+    // plane strokes are tested UNPADDED: inside candidates legally hug their
+    // own plane's line (~2px of air past the em box), so the 4px pad that is
+    // right for hulls/flows would reject every inside spot — the raw test
+    // matches checkLabels exactly, which is all survivability needs
+    if (_labelSpotClear(_inflate(quad, PAD)) && _quadClearOfPlaneStrokes(quad)) {
+      return planeLabel(txt, ax, ay, axis, opts);
+    }
+  }
+  throw new Error(`autoLabel "${txt}": no clear position on plane (${x0}, ${y0})-(${x1}, ${y1}) `
+    + `(${cands.length} candidates tried) — enlarge the plane, shorten the label, `
+    + "or place it manually with planeLabel()");
+}
+
+// a plane line within this of a head's tip or base reads as touching; a
+// compliant 0.6 margin leaves ~7px, the shipped 0.4-margin defect left 0
+const _TOUCH_PX = 4;
+
+/** Error if a flow arrowhead's BASE edge touches a ground plane's outline.
+write() runs this automatically. The line passing MID-head is legal — an
+intentional boundary crossing (hybrid's fw->app1 head straddles the
+app-subnet line) — and so is the TIP landing on a line: tips land on the
+target's cell rect, and a plane edge flush with that rect is the exemplar's
+"arrow enters the tier" look (azure_lob's users->gw). The defect is the
+base sitting on the line, i.e. a plane margin equal to the 0.42-cell head
+length. Enforces STYLE.md's >= 0.6 flow-crossed-edge rule mechanically. */
+export function checkPlanes(): void {
+  for (const tri of _FLOWHEADS) {
+    const b1 = tri[1], b2 = tri[2];
+    for (const pl of _PLANES) {
+      for (let i = 0; i < pl.length; i++) {
+        const a = pl[i], b = pl[(i + 1) % pl.length];
+        if (_segSegDist(a, b, b1, b2) < _TOUCH_PX) {
+          throw new Error("flow arrowhead touches a plane outline — widen the plane "
+            + "margin (>= 0.6 on any edge a flow crosses) or reroute the flow");
+        }
+      }
+    }
+  }
+}
+
+/** The full write()-time guard battery, callable without touching the
+filesystem — the pure render() core runs this before returning its SVG. */
+export function runChecks(): void {
   checkLabels();
-  fs.writeFileSync(pathOut, parts.concat(["</svg>"]).join("\n"));
-  const ok = spawnSync("xmllint", ["--noout", pathOut], { stdio: "inherit" }).status === 0;
-  console.log(ok ? "valid" : "INVALID", Math.floor(fs.statSync(pathOut).size / 1024), "KB", pathOut);
+  checkChips();
+  checkPlanes();
 }

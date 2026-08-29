@@ -1,12 +1,13 @@
 /* Diagram glossary — every part of an isokit diagram, named and pointed at.
-Most glossary entries are not units (grid, seam, plane, rim, ...), so this
+Most glossary entries are not units (grid, estate, plane, rim, ...), so this
 layout uses direct chip() + legend() calls — the documented escape hatch for
 non-unit entries — with the numbering hand-synced between the two lists.
 Elevated targets (rim, raised plane) use ground-equivalent coordinates:
 iso(x, y, z) projects to the same screen point as iso(x - z, y - z, 0). */
-import { configure, out, plane, planeLabel, grid, svgOpen, write,
+import { configure, plane, planeLabel, grid, svgOpen,
   box, cyl, store, users, GLYPHS, unit, connect, renderUnits, chip, legend,
   INK, INK2, A2, A3, MONOQ } from "../src/isokit.ts";
+import { out, write } from "../src/io.ts";
 
 configure(46, 440, 48);
 const S = svgOpen(1400, 820);
@@ -18,7 +19,7 @@ S.push(plane(11, 0, 13, 2, 1.6));        // raised sheet over open ground
 unit("svc",   box,   4, 2,  { rim: A2, glyph: GLYPHS["app"] });
 unit("db",    cyl,   7, 4,  { rim: A3 });
 unit("blob",  store, 10, 8, { rim: A3 });
-unit("crowd", users, 3, 12);             // beyond the seam: the "other estate"
+unit("crowd", users, 3, 12);             // in the darker-ground estate
 
 S.push(connect("svc", "db", { exit: ["+y", 0.5], enter: ["-x", 0.5],
   via: [[5, 5]] }));
@@ -31,7 +32,7 @@ S.push(renderUnits());
 
 // chips: numbering must match the legend entries below, in order
 S.push(chip(1, 14.6, 1.0, [13.6, 2.0]));       // open grid intersection
-S.push(chip(2, 4.0, 9.6, [5.2, 11.0]));        // point on the seam line
+S.push(chip(2, 4.0, 9.6, [5.2, 11.0]));        // point on the estate boundary
 S.push(chip(3, 1.4, 3.2, [3.0, 4.2]));         // plane's left edge
 S.push(chip(4, 10.4, 1.6, [11.4, 0.4]));       // raised sheet south corner (13,2)@z1.6
 S.push(chip(5, 5.9, 8.4, [4.7, 6.26]));        // just under the PLANE LABEL glyphs
@@ -48,7 +49,7 @@ S.push(chip(13, 12.6, 5.4));                   // a bare chip, pointing at nothi
 
 S.push(legend([
   ["Iso grid",     "ground lattice; units snap to it"],
-  ["Ground seam",  "two-tone boundary on a grid line"],
+  ["Estate",       "ground zone; edge on a grid line"],
   ["Plane",        "translucent grouping sheet"],
   ["Raised plane", "sheet lifted on posts (z arg)"],
   ["Plane label",  "sheared text lying in the ground"],

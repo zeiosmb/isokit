@@ -7,9 +7,10 @@ approach, and a bare pill centered on its point. Legend: 12 rows crossing the
 stays vertical — plus a mock block showing the digit-aware column shift a
 4-digit rail would get (a real rail can't reach 4 digits: the height guard
 caps it ~15 rows). */
-import { setTheme, configure, out, grid, svgOpen, write, box, GLYPHS,
+import { setTheme, configure, grid, svgOpen, box, GLYPHS,
   unit, renderUnits, chip, legend, A1, INK, INK2, MONOQ }
   from "../src/isokit.ts";
+import { out, write } from "../src/io.ts";
 
 setTheme("blueprint");
 configure(46, 440, 48);

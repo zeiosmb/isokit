@@ -7,16 +7,17 @@ width). If the collision geometry changes — hull construction, em-box
 estimate, EPS tolerance — this layout starts erroring; the looser direction
 is locked by the must-still-fail cases in tests/collisions.ts. Each label
 exercises a different geometry path. */
-import { configure, out, plane, planeLabel, grid, svgOpen, write,
+import { configure, plane, planeLabel, grid, svgOpen,
   box, cyl, store, rack, GLYPHS, unit, connect, renderUnits,
   annotate, annotations, INK, INK2, A1, A2, A3, MONOQ } from "../src/isokit.ts";
+import { out, write } from "../src/io.ts";
 
 configure(46, 440, 48);
 const S = svgOpen(1400, 700);
 S.push(grid());
 
-S.push(plane(2.6, 0.6, 11.4, 4.4));     // pipeline tier
-S.push(plane(4.6, 5.6, 11.4, 8.4));     // data tier
+S.push(plane(2.4, 0.4, 11.6, 4.6));     // pipeline tier
+S.push(plane(4.4, 5.4, 11.6, 8.6));     // data tier
 
 unit("gw",   box,   3, 2,  { rim: A2, glyph: GLYPHS["gw"] });
 unit("app",  box,   9, 1,  { rim: A3, glyph: GLYPHS["app"] });
@@ -58,9 +59,10 @@ S.push(renderUnits());
 
 annotate("gw",   "Gateway",    "ingress edge of the pipeline tier.", [2.0, 0.6]);
 annotate("app",  "App tier",   "processes and fans out to the data tier.", [11.6, 0.2]);
-// approach from the south: any ray from the west crosses the DATA TIER
-// label's line, and the drum-snapped chip would land on the text
-annotate("db",   "Database",   "drum hull keeps the air beside it labelable.", [4.6, 9.4]);
+// approach from above the NW so the ray's first hull crossing is the DRUM
+// rim, not a plate corner — the chip visibly hugs the drum. West rays cross
+// the DATA TIER label's line; south rays stop at the plate's south corner.
+annotate("db",   "Database",   "drum hull keeps the air beside it labelable.", [3.4, 5.2]);
 annotate("blob", "Cold store", "slant-edge hull bounds the near face.", [12.2, 7.6]);
 annotate("ops",  "Ops rack",   "plate corners bound the ground graze.", [15.7, 5.2]);
 

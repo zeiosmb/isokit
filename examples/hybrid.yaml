@@ -1,0 +1,34 @@
+# examples/hybrid.yaml — the semantic remake of the hand-tuned hybrid layout:
+# two estates, auto-placed groups, annotations. The benchmark is "legal and
+# decent on the first render", not parity with layouts/hybrid_onprem_azure.ts.
+isokit: 1
+title: "HYBRID: ON-PREM TO AZURE"
+theme: azure
+
+estates:
+  cloud: {}
+  on-prem: { tone: dark }
+
+units:
+  vpngw: { shape: box, glyph: gw, accent: 2 }
+  app1: { shape: box, glyph: app, accent: 1 }
+  app2: { shape: box, glyph: app, accent: 1 }
+  sql: { shape: cyl, accent: 3 }
+  hq: { shape: building, accent: 2 }
+  staff: { shape: users }
+
+groups:
+  gateway: { label: GW, units: [vpngw], estate: cloud }
+  app-subnet: { label: APP SUBNET, units: [app1, app2], estate: cloud }
+  data-subnet: { label: DATA, units: [sql], estate: cloud }
+  on-premises: { label: ON-PREMISES, units: [hq, staff], estate: on-prem }
+
+flows:
+  - { from: staff, to: hq }
+  - { from: hq, to: vpngw, style: sync }
+  - { from: vpngw, to: app1 }
+  - { from: app1, to: sql, style: data }
+
+annotations:
+  vpngw: { title: VPN Gateway, note: terminates the site-to-site tunnel. }
+  sql: { title: SQL, note: relational data tier. }

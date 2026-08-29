@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/zeiosmb/isokit/main/schema/isokit-1.json",
+  "title": "isokit diagram, format version 1",
+  "type": "object",
+  "required": ["isokit", "title", "units"],
+  "additionalProperties": false,
+  "properties": {
+    "isokit": { "const": 1 },
+    "title": { "type": "string" },
+    "theme": { "enum": ["blueprint", "azure"] },
+    "estates": {
+      "type": "object", "maxProperties": 2,
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "properties": { "tone": { "enum": ["dark"] } }
+      }
+    },
+    "units": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["shape"], "additionalProperties": false,
+        "properties": {
+          "shape": { "enum": ["box", "slab", "panel", "cyl", "rack", "building", "wall", "queue", "store", "users", "laptop", "phone", "browser", "padlock", "monitor"] },
+          "glyph": { "enum": ["gw", "app", "entra", "kv", "fn", "doc", "shield"] },
+          "accent": { "enum": [1, 2, 3] }
+        }
+      }
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["label", "units"], "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string" },
+          "units": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "estate": { "type": "string" }
+        }
+      }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["from", "to"], "additionalProperties": false,
+        "properties": {
+          "from": { "type": "string" }, "to": { "type": "string" },
+          "style": { "enum": ["request", "data", "sync"] }
+        }
+      }
+    },
+    "annotations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["title", "note"], "additionalProperties": false,
+        "properties": { "title": { "type": "string" }, "note": { "type": "string" } }
+      }
+    },
+    "placement": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object", "required": ["origin"], "additionalProperties": false,
+            "properties": {
+              "origin": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+              "cols": { "type": "integer" }, "gap": { "type": "integer" }, "pad": { "type": "number" }
+            }
+          }
+        },
+        "units": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+        },
+        "flows": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["from", "to", "via"], "additionalProperties": false,
+            "properties": {
+              "from": { "type": "string" }, "to": { "type": "string" },
+              "via": { "type": "array", "minItems": 1,
+                "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

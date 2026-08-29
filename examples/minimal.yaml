@@ -1,0 +1,20 @@
+# examples/minimal.yaml — the smallest useful isokit document: one group,
+# one loose pin, two flows. Everything else is derived.
+isokit: 1
+title: "MINIMAL"
+
+units:
+  web: { shape: box, glyph: app, accent: 1 }
+  db: { shape: cyl, accent: 3 }
+  blob: { shape: store, accent: 3 }
+
+groups:
+  app-tier: { label: APP TIER, units: [web, db] }
+
+flows:
+  - { from: web, to: db }
+  - { from: db, to: blob, style: data }
+
+placement:
+  units:
+    blob: [10, 3]

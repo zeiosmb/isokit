@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Build
+        run: |
+          npm ci
+          npm test
+          npm run build:obsidian
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            obsidian/main.js
+            obsidian/styles.css
+
+      - name: Create draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --draft \
+            obsidian/main.js manifest.json obsidian/styles.css

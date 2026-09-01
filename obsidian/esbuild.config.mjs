@@ -1,4 +1,6 @@
-// Bundle the plugin for Obsidian: one CJS main.js next to manifest.json.
+// Bundle the plugin for Obsidian: one CJS main.js. The plugin's
+// manifest.json/versions.json live at the repo root — the community-plugin
+// validator requires them there.
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";

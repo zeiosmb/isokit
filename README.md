@@ -87,7 +87,7 @@ Build and install:
 ```bash
 npm run build:obsidian
 mkdir -p "<vault>/.obsidian/plugins/isokit"
-cp obsidian/main.js obsidian/manifest.json obsidian/styles.css "<vault>/.obsidian/plugins/isokit/"
+cp obsidian/main.js manifest.json obsidian/styles.css "<vault>/.obsidian/plugins/isokit/"
 ```
 
 Then enable **isokit** under Settings → Community plugins. The bundle is
@@ -104,8 +104,8 @@ errors, escaping, and the pan/zoom/legend math — on every `npm test`.
 `examples/interactive/` holds the same set of renders with equivalent
 controls baked directly into the SVG itself via an inline `<script>`
 (`npm run build:interactive-examples` regenerates it from `src/interactive.ts`) —
-open one of those files in a browser tab for pan/zoom/legend-collapse with no
-plugin at all. Scripted SVGs don't execute inside `<img>`/`![[...]]` embeds
+open `examples/interactive/index.html` for a gallery, or any of the `.svg`
+files directly, for pan/zoom/legend-collapse with no plugin at all. Scripted SVGs don't execute inside `<img>`/`![[...]]` embeds
 (browsers block that in image context), so this is for direct-open viewing;
 the Obsidian plugin above is what powers the in-note version. `tests/interactive.ts`
 verifies the transform is purely additive — stripping the appended controls

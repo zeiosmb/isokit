@@ -4,3 +4,4 @@ tests/out/
 isokit.local
 dist/
 obsidian/main.js
+.DS_Store

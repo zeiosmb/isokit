@@ -1,6 +1,6 @@
 # isokit — Goals, End State, and Path
 
-Status of this document: the near-term goals and sequencing are settled; the end state is a working theory, not a commitment. Decision signals for firming it up are listed at the bottom. Last updated 2026-08-28.
+Status of this document: the near-term goals and sequencing are settled; the end state is a working theory, not a commitment. Decision signals for firming it up are listed at the bottom. Last updated 2026-09-01.
 
 ## Goals
 
@@ -72,5 +72,5 @@ These gate **Phase 4 only** — whether the web app earns its keep. The directio
 
 - **Coordinate-heavy YAML now** — rejected: the YAML's primary authors are agents, and coordinates are exactly what agents get wrong (and what Phase 2 auto-placement exists to derive) — freezing them into the schema ships mostly-broken diagrams. That humans don't want to hand-edit coordinates either is a second strike, not the reason.
 - **JS/TypeScript port** — ~~deferred indefinitely~~ **reversed and completed 2026-08-28**: the original objection ("forks every ratcheted rule into two codebases") assumed dual maintenance; porting-and-replacing keeps one codebase while unlocking instant no-WASM web rendering and a trivial Obsidian plugin path. The Python implementation was deleted after byte-identical verification, not kept in parallel.
-- **Obsidian plugin** — ~~deferred~~ **completed 2026-08-28**: `obsidian/` bundles the pure `render()` core (esbuild, CJS, `obsidian` external) behind a ` ```isokit ` code-block processor; errors render in-note as the CLI's structured block with code-block-relative line numbers. Harness-tested (`tests/obsidian.ts` loads the built bundle with a stubbed `obsidian` module) on every `npm test`. Not yet submitted to the community-plugin directory — install is manual copy into the vault.
+- **Obsidian plugin** — ~~deferred~~ **completed 2026-08-28**: `obsidian/` bundles the pure `render()` core (esbuild, CJS, `obsidian` external) behind a ` ```isokit ` code-block processor; errors render in-note as the CLI's structured block with code-block-relative line numbers. Harness-tested (`tests/obsidian.ts` loads the built bundle with a stubbed `obsidian` module) on every `npm test`. Extended 2026-09-01 with in-note interactivity: bottom-right `+`/`−`/legend-toggle controls, ctrl/cmd+scroll zoom, drag-pan, double-click reset (pure viewBox math, unit-tested). The same controls exist plugin-free as `examples/interactive/` — every golden render with the runtime embedded via inline `<script>` (`src/interactive.ts`, additive-transform-tested), plus an `index.html` gallery; regenerate with `npm run build:interactive-examples`. Not yet submitted to the community-plugin directory — install is manual copy into the vault.
 - **Agents generating share-URLs directly** — rejected: agents emit YAML text only; encoding is the page's job.

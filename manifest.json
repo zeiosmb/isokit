@@ -3,7 +3,7 @@
   "name": "isokit",
   "version": "0.1.1",
   "minAppVersion": "1.4.0",
-  "description": "Render isokit YAML code blocks as isometric architecture diagrams (self-contained SVG).",
+  "description": "Render isokit YAML code blocks as isometric architecture diagrams (self-contained SVG). Any AI can write the YAML for you: hand it the llms.txt spec from the repo.",
   "author": "Micah B",
   "isDesktopOnly": false
 }

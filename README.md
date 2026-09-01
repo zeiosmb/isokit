@@ -74,6 +74,23 @@ node src/cli.ts render examples/minimal.yaml
 format contract — every key, enum, the layout-derivation order, and the
 complete error table — is [SPEC.md](SPEC.md).
 
+## Authoring with AI
+
+The YAML's primary author is meant to be an AI agent. Hand any model this
+one URL (or paste the file into its context) along with your topology
+description, and it has everything it needs — task rules, the full format
+contract, and worked examples:
+
+```
+https://raw.githubusercontent.com/zeiosmb/isokit/main/llms.txt
+```
+
+Paste the returned YAML into an ` ```isokit ` code block in Obsidian (or a
+`.yaml` file for the CLI). If the render fails, paste the error block back
+to the agent — errors are written as instructions it can act on directly.
+`llms.txt` is generated from SPEC.md and the examples by
+`npm run build:llms`; `tests/llms.ts` fails the suite if it drifts.
+
 ## Obsidian plugin
 
 `obsidian/` packages the pure render core as an Obsidian plugin: a

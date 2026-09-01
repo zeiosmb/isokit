@@ -74,6 +74,43 @@ node src/cli.ts render examples/minimal.yaml
 format contract — every key, enum, the layout-derivation order, and the
 complete error table — is [SPEC.md](SPEC.md).
 
+## Obsidian plugin
+
+`obsidian/` packages the pure render core as an Obsidian plugin: a
+` ```isokit ` code block containing a YAML document renders in-note as the
+finished SVG. Errors render in-note too, as the same structured block the
+CLI prints — the `line N` it cites is the line within the code block, so
+fixes happen without leaving the note.
+
+Build and install:
+
+```bash
+npm run build:obsidian
+mkdir -p "<vault>/.obsidian/plugins/isokit"
+cp obsidian/main.js obsidian/manifest.json obsidian/styles.css "<vault>/.obsidian/plugins/isokit/"
+```
+
+Then enable **isokit** under Settings → Community plugins. The bundle is
+self-contained (fonts embedded, no network, no filesystem access) and works
+on mobile. Every rendered block gets small overlay controls in its bottom-right
+corner: `+`/`−` to zoom (also ctrl/cmd+scroll, or pinch on trackpad/mobile),
+drag to pan once zoomed, double-click to reset. Diagrams with annotations also
+get a `»`/`«` legend toggle: collapsing hides the legend rail and narrows the
+viewBox so the diagram reflows to full width (the SVG itself is untouched —
+the rail is addressable via its `isokit-legend` class). `tests/obsidian.ts`
+builds the real bundle and drives the code-block processor — rendering,
+errors, escaping, and the pan/zoom/legend math — on every `npm test`.
+
+`examples/interactive/` holds the same set of renders with equivalent
+controls baked directly into the SVG itself via an inline `<script>`
+(`npm run build:interactive-examples` regenerates it from `src/interactive.ts`) —
+open one of those files in a browser tab for pan/zoom/legend-collapse with no
+plugin at all. Scripted SVGs don't execute inside `<img>`/`![[...]]` embeds
+(browsers block that in image context), so this is for direct-open viewing;
+the Obsidian plugin above is what powers the in-note version. `tests/interactive.ts`
+verifies the transform is purely additive — stripping the appended controls
+reproduces the plain render byte-for-byte.
+
 ## What's enforced
 
 - Unit positions snap to integer grid cells; every unit owns a whole-cell footprint (default 2×2, `cells: [w, d]` to override); overlapping footprints are an error.
@@ -97,7 +134,7 @@ Project goals, the candidate end state (mermaid.live-style static web app with U
 npm test
 ```
 
-Runs four suites: `tests/pyfmt.ts` (float formatting vs. a CPython oracle), `tests/errors.ts` (every enforced guard), `tests/collisions.ts` (the label collision check and chip-snap geometry), and `tests/check-golden.sh` (byte-compares every layout's render against `tests/golden/`).
+Runs the full chain: engine suites (`tests/pyfmt.ts` — float formatting vs. a CPython oracle, `tests/errors.ts` — every enforced guard, `tests/collisions.ts` — label collisions and chip-snap geometry, plus the autolabel/autochip/group/autoroute regression suites), the YAML pipeline suites (`tests/yaml.ts` parser, `tests/validate.ts` validator + SPEC.md error-table cross-check, `tests/jsonschema.ts` schema drift-guard, `tests/semantic.ts` layout derivation + render-core purity walk, `tests/cli.ts`), and `tests/check-golden.sh` (byte-compares every render — TS layouts and YAML examples — against `tests/golden/`).
 
 Golden policy: the goldens' job is to make every rendering change *deliberate*, not to freeze output. Unintended byte drift (a refactor that changes formatting, a theme-token accident) fails loudly; when output changes on purpose (new enforcement, renderer fixes, layout edits), the affected goldens are regenerated after visual verification and the diff is the review artifact. They began as Python-prototype output (commit `2f46dd2`) that verified the TypeScript port byte-identical.
 

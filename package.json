@@ -12,10 +12,14 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node tests/pyfmt.ts && node tests/errors.ts && node tests/collisions.ts && node tests/chips.ts && node tests/autolabel.ts && node tests/autochip.ts && node tests/group.ts && node tests/autoroute.ts && node tests/yaml.ts && node tests/validate.ts && node tests/jsonschema.ts && node tests/semantic.ts && node tests/cli.ts && bash tests/check-golden.sh"
+    "test": "node tests/pyfmt.ts && node tests/errors.ts && node tests/collisions.ts && node tests/chips.ts && node tests/autolabel.ts && node tests/autochip.ts && node tests/group.ts && node tests/autoroute.ts && node tests/yaml.ts && node tests/validate.ts && node tests/jsonschema.ts && node tests/semantic.ts && node tests/cli.ts && node tests/obsidian.ts && node tests/interactive.ts && bash tests/check-golden.sh",
+    "build:obsidian": "node obsidian/esbuild.config.mjs",
+    "build:interactive-examples": "node scripts/gen-interactive-examples.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
+    "obsidian": "^1.13.1",
     "typescript": "^5.7.0"
   }
 }

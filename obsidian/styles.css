@@ -1,0 +1,61 @@
+.isokit-block svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  touch-action: pan-y;
+}
+
+.isokit-block svg.isokit-zoomed {
+  cursor: grab;
+}
+
+.isokit-block svg.isokit-zoomed:active {
+  cursor: grabbing;
+}
+
+.isokit-block {
+  position: relative;
+}
+
+/* floats inside the diagram's bottom-right corner; the SVG behind it is
+   always a colored ground or the legend rail, so fixed translucent-dark
+   works in both themes */
+.isokit-controls {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.isokit-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-monospace);
+  font-size: 13px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.isokit-btn:hover {
+  opacity: 1;
+  color: #fff;
+}
+
+.isokit-error {
+  white-space: pre-wrap;
+  padding: var(--size-4-3);
+  border-left: 3px solid var(--text-error);
+  background: var(--background-secondary);
+  color: var(--text-error);
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+}

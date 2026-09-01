@@ -1319,7 +1319,8 @@ export function legend(entries: [string, string][], opts: { footer?: string | nu
     throw new Error(`legend content reaches y=${bottom} on a ${_CANVAS_H}px canvas `
       + "(needs 16px margin) — shorten/drop entries or open a taller canvas");
   }
-  return g.join("");
+  // class hook: embedders (the Obsidian plugin) address the rail to collapse it
+  return `<g class="isokit-legend">${g.join("")}</g>`;
 }
 
 // ---- label collision check (Phase 2 step 1) ----

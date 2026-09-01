@@ -18,4 +18,72 @@
 <text x="40" y="52" font-family="'JetBrains Mono',Menlo,monospace" font-size="24" font-weight="700" fill="#edf2f4">AUTO ROUTE DEMO</text>
 <text x="40" y="76" font-family="'JetBrains Mono',Menlo,monospace" font-size="12.5" fill="#8d99ae">zero authored waypoints &#183; router detours around units &#183; generator: layouts/auto_route_demo.ts</text>
 <polygon points="259.7,187.1 248.8,192.1 248.8,182.2" fill="#ef233c"/><circle cx="241" cy="187" r="11" fill="#ef233c"/><text x="241" y="191" font-family="'JetBrains Mono',Menlo,monospace" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">1</text><polygon points="831.7,456.3 842.6,451.3 842.6,461.2" fill="#ef233c"/><circle cx="851" cy="456" r="11" fill="#ef233c"/><text x="851" y="460" font-family="'JetBrains Mono',Menlo,monospace" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text><polygon points="219.9,404.5 209.0,409.5 209.0,399.5" fill="#ef233c"/><circle cx="201" cy="404" r="11" fill="#ef233c"/><text x="201" y="408" font-family="'JetBrains Mono',Menlo,monospace" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text><g class="isokit-legend"><rect x="1054" y="0" width="346" height="700" fill="#1d1f2e"/><text x="1086" y="48" font-family="'JetBrains Mono',Menlo,monospace" font-size="13" font-weight="700" fill="#8d99ae" letter-spacing="4">LEGEND</text><circle cx="1086" cy="76" r="11" fill="#ef233c"/><text x="1086" y="80" font-family="'JetBrains Mono',Menlo,monospace" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">1</text><text x="1110" y="80" font-family="'JetBrains Mono',Menlo,monospace" font-size="13.5" font-weight="700" fill="#edf2f4">Gateway</text><text x="1110" y="96" font-family="'JetBrains Mono',Menlo,monospace" font-size="11.5" fill="#8d99ae">fans out around the worker row.</text><circle cx="1086" cy="131" r="11" fill="#ef233c"/><text x="1086" y="135" font-family="'JetBrains Mono',Menlo,monospace" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text><text x="1110" y="135" font-family="'JetBrains Mono',Menlo,monospace" font-size="13.5" font-weight="700" fill="#edf2f4">Azure SQL</text><text x="1110" y="151" font-family="'JetBrains Mono',Menlo,monospace" font-size="11.5" fill="#8d99ae">reached by a routed detour, not an</text><text x="1110" y="166" font-family="'JetBrains Mono',Menlo,monospace" font-size="11.5" fill="#8d99ae">authored one.</text><circle cx="1086" cy="201" r="11" fill="#ef233c"/><text x="1086" y="205" font-family="'JetBrains Mono',Menlo,monospace" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text><text x="1110" y="205" font-family="'JetBrains Mono',Menlo,monospace" font-size="13.5" font-weight="700" fill="#edf2f4">Service Bus</text><text x="1110" y="221" font-family="'JetBrains Mono',Menlo,monospace" font-size="11.5" fill="#8d99ae">collects async work from the row.</text><text x="1086" y="264" font-family="'JetBrains Mono',Menlo,monospace" font-size="10.5" fill="#8d99ae">every flow here is machine-routed</text></g>
-</svg>
+<g class="isokit-controls" transform="translate(1400 700)"><g id="isokit-zoom-in" class="isokit-ctrl-btn" style="cursor:pointer"><circle cx="-77" cy="-21" r="11" fill="#000" fill-opacity="0.3"/><text x="-77" y="-17" text-anchor="middle" font-family="monospace" font-size="13" fill="#fff" fill-opacity="0.75" style="user-select:none">+</text></g><g id="isokit-zoom-out" class="isokit-ctrl-btn" style="cursor:pointer"><circle cx="-49" cy="-21" r="11" fill="#000" fill-opacity="0.3"/><text x="-49" y="-17" text-anchor="middle" font-family="monospace" font-size="13" fill="#fff" fill-opacity="0.75" style="user-select:none">−</text></g><g id="isokit-legend-toggle" class="isokit-ctrl-btn" style="cursor:pointer"><circle cx="-21" cy="-21" r="11" fill="#000" fill-opacity="0.3"/><text id="isokit-legend-toggle-label" x="-21" y="-17" text-anchor="middle" font-family="monospace" font-size="13" fill="#fff" fill-opacity="0.75" style="user-select:none">»</text></g></g><style>svg:root{max-width:100%;height:auto}</style><script><![CDATA[(function(svg){
+  var RAIL_W=346, MAX_ZOOM=16;
+  function parseVB(s){var m=s.trim().match(/^(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)$/);
+    return m?{x:+m[1],y:+m[2],w:+m[3],h:+m[4]}:null;}
+  function fmtVB(v){function n(x){return String(Math.round(x*100)/100);}
+    return n(v.x)+" "+n(v.y)+" "+n(v.w)+" "+n(v.h);}
+  function clamp(val,lo,hi){return Math.min(Math.max(val,lo),hi);}
+  function panVB(v,dx,dy,base){return {x:clamp(v.x+dx,base.x,base.x+base.w-v.w),
+    y:clamp(v.y+dy,base.y,base.y+base.h-v.h),w:v.w,h:v.h};}
+  function zoomVB(v,factor,cx,cy,base){
+    var w=Math.min(base.w,Math.max(base.w/MAX_ZOOM,v.w*factor));
+    var f=w/v.w, h=v.h*f;
+    return panVB({x:cx-(cx-v.x)*f,y:cy-(cy-v.y)*f,w:w,h:h},0,0,base);}
+  var expanded=parseVB(svg.getAttribute("viewBox")||"");
+  var expandedW=parseInt(svg.getAttribute("width"),10);
+  if(!expanded||!isFinite(expandedW)) return;
+  var base=expanded;
+  var ctrls=svg.querySelector(".isokit-controls");
+  var last=null;
+  function view(){return parseVB(svg.getAttribute("viewBox")||"")||base;}
+  function setView(v){
+    svg.setAttribute("viewBox",fmtVB(v));
+    var r=view();
+    if(ctrls) ctrls.setAttribute("transform",
+      "translate("+(r.x+r.w)+" "+(r.y+r.h)+") scale("+(r.w/base.w)+")");
+    svg.style.cursor=r.w<base.w-0.5?(last?"grabbing":"grab"):"";
+  }
+  function toVBPoint(e){var r=svg.getBoundingClientRect();var v=view();
+    return [v.x+((e.clientX-r.left)/r.width)*v.w, v.y+((e.clientY-r.top)/r.height)*v.h];}
+  svg.addEventListener("wheel",function(e){
+    if(!e.ctrlKey&&!e.metaKey) return; e.preventDefault();
+    var p=toVBPoint(e);
+    setView(zoomVB(view(),Math.exp(e.deltaY*0.002),p[0],p[1],base));
+  },{passive:false});
+  svg.addEventListener("pointerdown",function(e){
+    if(view().w>=base.w-0.5) return;
+    last={x:e.clientX,y:e.clientY}; svg.setPointerCapture(e.pointerId); e.preventDefault();
+    svg.style.cursor="grabbing";
+  });
+  svg.addEventListener("pointermove",function(e){
+    if(!last) return; var r=svg.getBoundingClientRect(); var v=view();
+    setView(panVB(v,((last.x-e.clientX)/r.width)*v.w,((last.y-e.clientY)/r.height)*v.h,base));
+    last={x:e.clientX,y:e.clientY};
+  });
+  function end(){last=null; setView(view());}
+  svg.addEventListener("pointerup",end); svg.addEventListener("pointercancel",end);
+  svg.addEventListener("dblclick",function(){setView(base);});
+  function zoomStep(factor){var v=view();
+    setView(zoomVB(v,factor,v.x+v.w/2,v.y+v.h/2,base));}
+  var zin=svg.getElementById("isokit-zoom-in");
+  if(zin) zin.addEventListener("click",function(){zoomStep(1/1.5);});
+  var zout=svg.getElementById("isokit-zoom-out");
+  if(zout) zout.addEventListener("click",function(){zoomStep(1.5);});
+  var legend=svg.querySelector(".isokit-legend");
+  var toggle=svg.getElementById("isokit-legend-toggle");
+  var label=svg.getElementById("isokit-legend-toggle-label");
+  if(legend&&toggle){
+    var collapsed={x:expanded.x,y:expanded.y,w:expanded.w-RAIL_W,h:expanded.h};
+    var hidden=false;
+    toggle.addEventListener("click",function(){
+      hidden=!hidden;
+      legend.style.display=hidden?"none":"";
+      base=hidden?collapsed:expanded;
+      svg.setAttribute("width",String(hidden?expandedW-RAIL_W:expandedW));
+      setView(base);
+      if(label) label.textContent=hidden?"\u00AB":"\u00BB";
+    });
+  }
+})(document.currentScript.closest("svg"));]]></script></svg>

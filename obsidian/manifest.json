@@ -1,0 +1,9 @@
+{
+  "id": "isokit",
+  "name": "isokit",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Render isokit YAML code blocks as isometric architecture diagrams (self-contained SVG).",
+  "author": "Micah B",
+  "isDesktopOnly": false
+}

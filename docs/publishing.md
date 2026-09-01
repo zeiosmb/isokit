@@ -10,7 +10,15 @@ Releases are fully automated from a tag push. The `Release` GitHub Action (`.git
 
 1. Bump the version in `manifest.json` (repo root), `versions.json` (repo root; new entry mapping version → `minAppVersion`), and `package.json`. All three must agree BEFORE tagging.
 2. Draft release notes: everything since the previous tag (`git log <prev-tag>..HEAD --oneline`), user-facing changes first. Note whether rendered output changed (which goldens regenerated, why) — for a renderer whose promise is deliberate, byte-stable output, that belongs in every release.
-3. Commit, push, then tag and push the tag. The tag is the bare version — `0.1.1`, **never** `v0.1.1`. The directory matches tag to manifest version character-for-character.
+3. Commit and push **first**, then tag and push the tag:
+
+   ```bash
+   git push origin main
+   git tag 0.1.1
+   git push origin 0.1.1
+   ```
+
+   The tag is the bare version — `0.1.1`, **never** `v0.1.1` (the directory matches tag to manifest version character-for-character). Order matters: the Action runs from the tagged commit's tree, so the workflow file and every release change must already be in the commit you tag. Tagged the wrong commit? See Troubleshooting.
 4. Wait for the `Release` workflow to succeed (`gh run list`). It creates a draft release.
 5. In the browser, open the draft on the GitHub releases page, paste in the release notes, and **Publish release**. Never use "Draft a new release" by hand — that creates an assetless release the directory can't distribute.
 6. Run the post-publish verification below.
@@ -47,6 +55,16 @@ After publishing:
 
 ## Troubleshooting
 
+- **Tagged the wrong commit** (e.g. tagged before committing/pushing the release changes): delete the tag remotely and locally, re-tag the right commit, push again —
+
+  ```bash
+  git push --delete origin 0.1.1   # remove the remote tag
+  git tag -d 0.1.1                 # remove the local tag
+  git tag 0.1.1                    # re-tag (current HEAD, or name a commit)
+  git push origin 0.1.1
+  ```
+
+  If the first tag already triggered the workflow, delete its draft release on the GitHub releases page before re-pushing — otherwise you'll have duplicate drafts (see post-publish check 1).
 - **"Could not find or validate a manifest (manifest.json) in the repository"** on submission: `manifest.json` isn't at the repo root of the default branch on GitHub — push it there and resubmit.
 - **"No release matches your manifest version"** on the dashboard: the release for the manifest's version is missing, still a draft, or tagged with a `v` prefix. Publish the draft (or fix the tag) and re-check.
 - **Release exists but users don't get the update**: check the release isn't a draft/prerelease and has all three assets; then allow up to an hour for propagation.

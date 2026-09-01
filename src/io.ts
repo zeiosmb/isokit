@@ -28,9 +28,21 @@ export function out(name: string): string {
   return path.join(d, name);
 }
 
+/** Run xmllint on a written file. true = valid, false = invalid,
+null = xmllint not installed (validation skipped — not a failure). */
+export function lintSvg(pathOut: string): boolean | null {
+  const r = spawnSync("xmllint", ["--noout", pathOut], { stdio: "inherit" });
+  if ((r.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") return null;
+  return r.status === 0;
+}
+
+/** Human-readable verdict prefix for a lintSvg() result. */
+export function lintWord(lint: boolean | null): string {
+  return lint === null ? "unvalidated (no xmllint)" : lint ? "valid" : "INVALID";
+}
+
 export function write(pathOut: string, parts: string[]): void {
   runChecks();
   fs.writeFileSync(pathOut, parts.concat(["</svg>"]).join("\n"));
-  const ok = spawnSync("xmllint", ["--noout", pathOut], { stdio: "inherit" }).status === 0;
-  console.log(ok ? "valid" : "INVALID", Math.floor(fs.statSync(pathOut).size / 1024), "KB", pathOut);
+  console.log(lintWord(lintSvg(pathOut)), Math.floor(fs.statSync(pathOut).size / 1024), "KB", pathOut);
 }

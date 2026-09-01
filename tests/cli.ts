@@ -20,9 +20,21 @@ fs.writeFileSync("/tmp/isokit-cli-bad.yaml", 'isokit: 1\ntitle: "X"\nunits:\n  a
 
 const good = spawnSync("node", ["src/cli.ts", "render", "/tmp/isokit-cli-good.yaml",
   "-o", "tests/out/cli-smoke.svg"], { encoding: "utf8" });
+if (good.status !== 0) console.error(`good render stdout: ${good.stdout}\nstderr: ${good.stderr}`);
 ok("exit 0", good.status === 0);
 ok("stdout reports", good.stdout.includes("tests/out/cli-smoke.svg"));
 ok("file written", fs.readFileSync("tests/out/cli-smoke.svg", "utf8").startsWith("<svg"));
+
+// a machine without xmllint (e.g. a stock CI runner) skips validation and
+// still succeeds — a missing validator is not an invalid file
+const binDir = fs.mkdtempSync("/tmp/isokit-cli-bin-");
+fs.symlinkSync(process.execPath, `${binDir}/node`);
+const nolint = spawnSync("node", ["src/cli.ts", "render", "/tmp/isokit-cli-good.yaml",
+  "-o", "tests/out/cli-nolint.svg"], { encoding: "utf8", env: { ...process.env, PATH: binDir } });
+if (nolint.status !== 0) console.error(`nolint stdout: ${nolint.stdout}\nstderr: ${nolint.stderr}`);
+ok("no xmllint: exit 0", nolint.status === 0);
+ok("no xmllint: reports unvalidated", nolint.stdout.includes("unvalidated"));
+ok("no xmllint: file written", fs.readFileSync("tests/out/cli-nolint.svg", "utf8").startsWith("<svg"));
 
 const bad = spawnSync("node", ["src/cli.ts", "render", "/tmp/isokit-cli-bad.yaml"], { encoding: "utf8" });
 ok("exit 1 on IsokitError", bad.status === 1);

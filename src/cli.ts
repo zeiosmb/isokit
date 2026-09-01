@@ -2,12 +2,11 @@
 // src/cli.ts — the thin Node shell: argv, file I/O, exit codes, xmllint.
 // All rendering logic lives behind the pure core; this file only feeds it.
 import * as fs from "node:fs";
-import { spawnSync } from "node:child_process";
 import { parseYaml } from "./yaml.ts";
 import { validate } from "./schema.ts";
 import { derive } from "./semantic.ts";
 import { IsokitError, formatError } from "./error.ts";
-import { out } from "./io.ts";
+import { out, lintSvg, lintWord } from "./io.ts";
 
 const args = process.argv.slice(2);
 const oi = args.indexOf("-o");
@@ -38,9 +37,9 @@ try {
   }
   const dest = dest0 ?? out(`${diagram.title}.svg`);
   fs.writeFileSync(dest, svg);
-  const ok = spawnSync("xmllint", ["--noout", dest], { stdio: "inherit" }).status === 0;
-  console.log(ok ? "valid" : "INVALID", Math.floor(fs.statSync(dest).size / 1024), "KB", dest);
-  process.exit(ok ? 0 : 1);
+  const lint = lintSvg(dest);   // null = no xmllint on this machine: skip, don't fail
+  console.log(lintWord(lint), Math.floor(fs.statSync(dest).size / 1024), "KB", dest);
+  process.exit(lint === false ? 1 : 0);
 } catch (e) {
   if (e instanceof IsokitError) { process.stderr.write(formatError(e, file)); process.exit(1); }
   throw e;   // a non-IsokitError here is a renderer bug — let it crash loudly

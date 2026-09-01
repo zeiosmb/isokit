@@ -1,6 +1,6 @@
 {
   "name": "isokit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Guarded generator for Azure-marketing-style isometric architecture diagrams, rendered as self-contained SVG",
   "type": "module",
   "license": "Apache-2.0",

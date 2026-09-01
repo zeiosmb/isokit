@@ -16,8 +16,25 @@ Ported 1:1 from the Python prototype (src/isokit/__init__.py at commit
 import { JBM400, JBM700 } from "./fonts.ts";
 
 export type Pt = [number, number];
-type Attrs = Record<string, string | number>;
-type Kw = Record<string, any>;
+// null/undefined serialize via the same template interpolation as before —
+// widening the type changes no bytes, only makes the flows checkable
+type Attrs = Record<string, string | number | null | undefined>;
+
+/** Shape keyword args: the union of every shape's optional keys. Shapes
+read the subset they use (Python **kw style); new shapes add keys here
+rather than widening the type. */
+export interface Kw {
+  rim?: string | null;
+  glyph?: string | null;
+  label?: string;
+  s?: number; sx?: number; sy?: number;
+  h?: number; r?: number; gk?: number;
+  with_plate?: boolean;
+  n?: number; fins?: number; cols?: number; rows?: number; segs?: number;
+  layers?: number; lh?: number;
+  w?: number; d?: number; hb?: number; hs?: number; z0?: number; it?: number;
+  cells?: [number, number] | null;
+}
 
 // ---- Python-compatible float formatting ----
 // Exact equivalent of Python f"{x:.{nd}f}" for finite doubles: exact decimal
@@ -661,12 +678,12 @@ export function unit(name: string, fn: ShapeFn, x: number, y: number, opts: Kw =
   // It stays in kw so the shape draws the same footprint the registry
   // centers and hulls (they diverged once — see ShapeProps.defS).
   const { cells = null, ...kw } = opts;
-  const s = (kw.s as number | undefined) ?? _shapeProps(fn).defS ?? 1.4;
+  const s = kw.s ?? _shapeProps(fn).defS ?? 1.4;
   kw.s = s;
   if (!(Number.isInteger(x) && Number.isInteger(y))) {
     throw new Error(`unit '${name}': position must snap to grid cells, got (${x}, ${y})`);
   }
-  const [w, d] = (cells ?? [2, 2]) as [number, number];
+  const [w, d] = cells ?? [2, 2];
   if (s + 2 * PLATE_M > Math.min(w, d)) {
     throw new Error(`unit '${name}': shape (s=${s} + plate) exceeds its ${w}x${d} cells`);
   }
@@ -706,7 +723,7 @@ export function group(origin: Pt, members: [string, ShapeFn, Kw?][],
   let x1 = ox, y1 = oy;
   members.forEach(([name, fn, kw = {}], i) => {
     if (i > 0 && i % cols === 0) { cx = ox; cy += rowD + gap; rowD = 0; }
-    const [w, d] = (kw.cells ?? [2, 2]) as [number, number];
+    const [w, d] = kw.cells ?? [2, 2];
     unit(name, fn, cx, cy, kw);
     x1 = Math.max(x1, cx + w); y1 = Math.max(y1, cy + d);
     cx += w + gap; rowD = Math.max(rowD, d);
@@ -779,7 +796,7 @@ Equal-cost detours break toward the screen-front lane (higher x+y): in
 isometric projection a back lane runs behind the blocker's top face and
 the flow disappears there. */
 export function autoVia(a: string, b: string, exit: Edge, enter: Edge): Pt[] {
-  const C = _ROUTE_CLEAR, STUB = 1.0, BEND = 0.75, EPS = 1e-9;
+  const C = _ROUTE_CLEAR, STUB = 1.0, EPS = 1e-9;
   const p0 = Array.isArray(exit) ? edgePt(a, exit[0], exit[1]) : edgePt(a, exit);
   const p1 = Array.isArray(enter) ? edgePt(b, enter[0], enter[1]) : edgePt(b, enter);
   const d0 = _sideDir(Array.isArray(exit) ? exit[0] : exit);
@@ -885,9 +902,8 @@ function _route(p0: Pt, p1: Pt, q0: Pt, q1: Pt, d0: Pt, d1: Pt,
 }
 
 export function connect(a: string, b: string, opts: ConnectOpts = {}): string {
-  const { via = null, style = "request", color = null, ...fkw } = opts;
-  let { exit, enter } = opts;
-  delete (fkw as Kw).exit; delete (fkw as Kw).enter;
+  const { via = null, style = "request", color = null, exit: exit0, enter: enter0, ...fkw } = opts;
+  let exit = exit0, enter = enter0;
   const [ax, ay] = _center(a), [bx, by] = _center(b);
   const dx = bx - ax, dy = by - ay;
   if (exit == null) exit = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "+x" : "-x") : (dy > 0 ? "+y" : "-y");

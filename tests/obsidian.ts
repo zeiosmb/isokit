@@ -17,13 +17,28 @@ if (build.status !== 0) { console.error(build.stderr); process.exit(1); }
 const js = fs.readFileSync("obsidian/main.js", "utf8");
 ok("bundle has no node: requires", !/require\("node:|from "node:/.test(js));
 
-// load main.js as CJS with a stub obsidian module
+// load main.js as CJS with a stub obsidian module. The plugin must never
+// assign innerHTML (Obsidian review hard-errors on it): the SVG arrives via
+// DOMParser + appendChild, the error block via Obsidian's createEl helper.
+// The stubs model exactly that surface — an innerHTML write would throw.
+ok("bundle never assigns innerHTML", !/\.innerHTML\s*=/.test(js));
+
+interface StubNode { tag: string; cls?: string; text?: string; raw?: string }
 type Processor = (source: string, el: StubEl) => void;
 interface StubEl {
-  innerHTML: string;
+  children: StubNode[];
   classList: { add(c: string): void };
+  appendChild(n: StubNode): void;
+  createEl(tag: string, o?: { cls?: string; text?: string }): StubNode;
   querySelector(sel: string): null;
 }
+class StubDOMParser {
+  parseFromString(s: string, _type: string): { documentElement: StubNode } {
+    return { documentElement: { tag: "svg", raw: s } };
+  }
+}
+(globalThis as Record<string, unknown>).DOMParser = StubDOMParser;
+
 const registered: { lang: string; fn: Processor }[] = [];
 class Plugin {
   registerMarkdownCodeBlockProcessor(lang: string, fn: Processor): void {
@@ -44,10 +59,17 @@ const proc = registered[0]?.fn;
 
 function el(): StubEl {
   const classes: string[] = [];
+  const children: StubNode[] = [];
   return {
-    innerHTML: "",
+    children,
     classList: { add: (c: string) => { classes.push(c); } },
-    querySelector: () => null,   // headless: the legend-toggle path no-ops
+    appendChild: (n: StubNode) => { children.push(n); },
+    createEl: (tag: string, o?: { cls?: string; text?: string }) => {
+      const n: StubNode = { tag, cls: o?.cls, text: o?.text };
+      children.push(n);
+      return n;
+    },
+    querySelector: () => null,   // headless: the interaction wiring no-ops
   };
 }
 
@@ -64,8 +86,8 @@ flows:
 `;
 const good = el();
 proc?.(GOOD, good);
-ok("good block renders svg", good.innerHTML.startsWith("<svg"));
-ok("svg is self-contained (fonts embedded)", good.innerHTML.includes("@font-face"));
+ok("good block appends a parsed svg node", good.children[0]?.tag === "svg" && (good.children[0]?.raw ?? "").startsWith("<svg"));
+ok("svg is self-contained (fonts embedded)", (good.children[0]?.raw ?? "").includes("@font-face"));
 
 // legend rail is addressable for the collapse toggle
 const ANNOT = GOOD + `annotations:
@@ -73,8 +95,8 @@ const ANNOT = GOOD + `annotations:
 `;
 const annot = el();
 proc?.(ANNOT, annot);
-ok("legend rail carries the toggle class", annot.innerHTML.includes('<g class="isokit-legend">'));
-ok("plain diagram has no legend group", !good.innerHTML.includes("isokit-legend"));
+ok("legend rail carries the toggle class", (annot.children[0]?.raw ?? "").includes('<g class="isokit-legend">'));
+ok("plain diagram has no legend group", !(good.children[0]?.raw ?? "").includes("isokit-legend"));
 
 // collapsedViewBox: the pure half of the toggle
 const cvb = (mod.exports as { collapsedViewBox?: (vb: string) => string | null }).collapsedViewBox;
@@ -111,17 +133,19 @@ ok("pan clamps to base edge", JSON.stringify(panned) === JSON.stringify({ x: 700
 const panned2 = px.panVB?.({ x: 350, y: 175, w: 700, h: 350 }, -10000, -10000, BASE);
 ok("pan clamps to base origin", JSON.stringify(panned2) === JSON.stringify({ x: 0, y: 0, w: 700, h: 350 }));
 
-// error path: a structured IsokitError becomes an escaped <pre> block
+// error path: a structured IsokitError becomes a <pre> built with createEl
 const BAD = 'isokit: 1\ntitle: "X"\nunits:\n  a: { shape: blob }\n';
 const bad = el();
 proc?.(BAD, bad);
-ok("bad block shows error pre", bad.innerHTML.startsWith('<pre class="isokit-error">'));
-ok("error block carries code + line", bad.innerHTML.includes("[enum-invalid]") && bad.innerHTML.includes("line 4"));
+ok("bad block shows error pre", bad.children[0]?.tag === "pre" && bad.children[0]?.cls === "isokit-error");
+ok("error block carries code + line", (bad.children[0]?.text ?? "").includes("[enum-invalid]") && (bad.children[0]?.text ?? "").includes("line 4"));
 
-// error text is escaped: a parse error quoting raw <text> must not inject markup
+// error text quoting raw <markup> travels as text (createEl sets textContent
+// — the DOM escapes it; there is no innerHTML for it to inject into)
 const INJ = "isokit: 1\ntitle: <script>\n";
 const inj = el();
 proc?.(INJ, inj);
-ok("injected markup is escaped", !inj.innerHTML.includes("<script>") && inj.innerHTML.includes('<pre class="isokit-error">'));
+ok("injected markup lands as text, not markup",
+  inj.children[0]?.tag === "pre" && typeof inj.children[0]?.text === "string" && inj.children[0]?.raw === undefined);
 
 process.exit(fail ? 1 : 0);

@@ -11,11 +11,12 @@ import {
   box, slab, panel, cyl, rack, building, wall, queue, store, users,
   laptop, phone, browser, padlock, monitor,
 } from "./isokit.ts";
+import type { Kw } from "./isokit.ts";
 
-type ShapeFn = (x: number, y: number, kw?: Record<string, unknown>) => string;
+type ShapeFn = (x: number, y: number, kw?: Kw) => string;
 const SHAPES: Record<ShapeName, ShapeFn> = {
   box, slab, panel, cyl, rack, building, wall, queue, store, users,
-  laptop, phone, browser, padlock, monitor: monitor as unknown as ShapeFn,
+  laptop, phone, browser, padlock, monitor,
 };
 
 function guarded<T>(fn: () => T, line: number | undefined, path: string, fix: string): T {
@@ -175,9 +176,9 @@ export function derive(d: Diagram): string {
   // --- register units: groups first (declaration order), then loose pins ---
   // (registration must precede connect()/autoLabel() emission below, but
   // must follow svgOpen(), which resets the label/plane/chip registries) ---
-  const kwFor = (uname: string): Record<string, unknown> => {
+  const kwFor = (uname: string): Kw => {
     const u = d.units.get(uname)!;
-    const kw: Record<string, unknown> = {};
+    const kw: Kw = {};
     if (u.accent) kw.rim = [A1, A2, A3][u.accent - 1];
     if (u.glyph) kw.glyph = GLYPHS[u.glyph];
     return kw;
@@ -187,7 +188,7 @@ export function derive(d: Diagram): string {
   const S = svgOpen(W, H);
   for (const pl of plans) {
     pl.rect = guarded(() => group(pl.origin,
-      pl.g.units.map(m => [m, SHAPES[d.units.get(m)!.shape], kwFor(m)] as [string, ShapeFn, Record<string, unknown>]),
+      pl.g.units.map(m => [m, SHAPES[d.units.get(m)!.shape], kwFor(m)] as [string, ShapeFn, Kw]),
       { cols: pl.cols, gap: pl.gap, pad: pl.pad }),
       pl.g.line, `groups.${pl.name}`,
       "move the group origin, reduce cols, or unpin a colliding unit");

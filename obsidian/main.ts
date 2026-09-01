@@ -8,10 +8,6 @@ import { IsokitError, formatError } from "../src/error.ts";
 const RAIL_W = 346;    // legend rail width reserved by the renderer's canvas
 const MAX_ZOOM = 16;   // tightest view: base width / 16
 
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 // ---- viewBox math (pure, unit-tested via tests/obsidian.ts) ----
 
 export interface VB { x: number; y: number; w: number; h: number }
@@ -102,15 +98,10 @@ function addInteraction(el: HTMLElement): void {
   svg.addEventListener("dblclick", () => setView(base));
 
   // control cluster, overlaid on the diagram's bottom-right via CSS
-  const controls = document.createElement("div");
-  controls.className = "isokit-controls";
+  const controls = el.createDiv({ cls: "isokit-controls" });
   const button = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
-    const b = document.createElement("button");
-    b.className = "isokit-btn";
-    b.textContent = label;
-    b.title = title;
+    const b = controls.createEl("button", { cls: "isokit-btn", text: label, title });
     b.onclick = onClick;
-    controls.appendChild(b);
     return b;
   };
   const zoomStep = (factor: number): void => {
@@ -135,7 +126,6 @@ function addInteraction(el: HTMLElement): void {
       btn.title = hidden ? "Expand legend" : "Collapse legend";
     });
   }
-  el.appendChild(controls);
 }
 
 export default class IsokitPlugin extends Plugin {
@@ -143,15 +133,16 @@ export default class IsokitPlugin extends Plugin {
     this.registerMarkdownCodeBlockProcessor("isokit", (source, el) => {
       el.classList.add("isokit-block");
       try {
-        // render() output is injection-safe: the validator rejects & < > in
-        // every user string before any SVG is emitted.
-        el.innerHTML = render(source);
+        // render() emits one self-contained XML document; DOMParser turns it
+        // into a real element (no innerHTML anywhere in this plugin)
+        const doc = new DOMParser().parseFromString(render(source), "image/svg+xml");
+        el.appendChild(doc.documentElement);
         addInteraction(el);
       } catch (e) {
         const text = e instanceof IsokitError
           ? formatError(e, "isokit block")
           : `isokit renderer bug (please report): ${String(e)}`;
-        el.innerHTML = `<pre class="isokit-error">${esc(text)}</pre>`;
+        el.createEl("pre", { cls: "isokit-error", text });
         if (!(e instanceof IsokitError)) console.error("isokit:", e);
       }
     });

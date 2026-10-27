@@ -52,9 +52,9 @@ const body = [
   "```yaml\n" + read("examples/minimal.yaml") + "\n```",
   "\n# Example 2: hybrid (two estates, annotations, a placement override)\n",
   "```yaml\n" + read("examples/hybrid.yaml") + "\n```",
-  "\n# Example 3: data pipeline (pipeline primitives, staircase placement)\n",
+  "\n# Example 3: data pipeline (pipeline primitives, flow-aware placement — no placement block)\n",
   "```yaml\n" + read("examples/pipeline.yaml") + "\n```",
-  "\n# Example 4: RAG assistant (AI primitives, hub placement)\n",
+  "\n# Example 4: RAG assistant (AI primitives, hub layout pinned via placement)\n",
   "```yaml\n" + read("examples/rag.yaml") + "\n```",
   "",
 ].join("\n");

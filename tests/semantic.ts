@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { parseYaml } from "../src/yaml.ts";
 import { validate } from "../src/schema.ts";
-import { derive } from "../src/semantic.ts";
+import { derive, flowOrigins } from "../src/semantic.ts";
 import { IsokitError } from "../src/error.ts";
 import { iso, poly } from "../src/isokit.ts";
 import { render as pureRender } from "../src/render.ts";
@@ -227,6 +227,125 @@ placement:
 `;
 try { ok("caption dodges a flow", render(CAPTION_VS_FLOW).includes("APPLICATION")); }
 catch (e) { console.error(`FAIL caption dodges a flow: ${e}`); fail++; }
+
+// --- flow-aware auto-placement (SPEC.md "Layout derivation" step 2) ---
+const dg = (y: string) => validate(parseYaml(y));
+const og = (y: string) => {
+  const m = flowOrigins(dg(y));
+  return m ? Object.fromEntries([...m].map(([k, v]) => [k, v.join(",")])) : null;
+};
+// a left-to-right pipeline with NO placement block derives the staircase that
+// examples/pipeline.yaml used to pin by hand: each group one column right of
+// its feeder, shifted so the fed member sits level with the feeding member
+// (every inter-group flow runs straight)
+const PIPE = `isokit: 1
+title: "PIPE"
+units:
+  files: { shape: docs }
+  orders: { shape: cyl }
+  events: { shape: box }
+  spark: { shape: cluster }
+  lake: { shape: tiers }
+  dw: { shape: cyl }
+  bi: { shape: dashboard }
+groups:
+  sources: { label: SOURCES, units: [files, orders] }
+  ingest: { label: INGEST, units: [events, spark] }
+  lakehouse: { label: LAKEHOUSE, units: [lake, dw] }
+  reporting: { label: BI, units: [bi] }
+flows:
+  - { from: files, to: events }
+  - { from: orders, to: spark, style: data }
+  - { from: events, to: spark }
+  - { from: spark, to: lake }
+  - { from: lake, to: dw, style: data }
+  - { from: dw, to: bi }
+`;
+const po = og(PIPE);
+ok("flow-aware: staircase origins", JSON.stringify(po) === JSON.stringify(
+  { sources: "1,1", ingest: "5,1", lakehouse: "9,4", reporting: "13,7" }));
+ok("flow-aware: pipeline renders", render(PIPE).includes("LAKEHOUSE"));
+ok("flow-aware: differs from row placement", derive(dg(PIPE)) !== derive(dg(PIPE), { flowAware: false }));
+
+// two groups fed by the same member land in one column; the second stacks
+// below the first with the same 2-cell gap the row placement uses
+const FORK = `isokit: 1
+title: "FORK"
+units:
+  s: { shape: box }
+  a: { shape: box }
+  b: { shape: box }
+groups:
+  src: { label: SRC, units: [s] }
+  ga: { label: GA, units: [a] }
+  gb: { label: GB, units: [b] }
+flows:
+  - { from: s, to: a }
+  - { from: s, to: b }
+`;
+ok("flow-aware: same-column groups stack", JSON.stringify(og(FORK)) === JSON.stringify(
+  { src: "1,1", ga: "5,1", gb: "5,5" }));
+
+// cycles break at the first back-edge (declaration-order DFS): deterministic, terminates
+const CYCLE = `isokit: 1
+title: "CYC"
+units:
+  a: { shape: box }
+  b: { shape: box }
+groups:
+  g1: { label: G1, units: [a] }
+  g2: { label: G2, units: [b] }
+flows:
+  - { from: a, to: b }
+  - { from: b, to: a }
+`;
+ok("flow-aware: cycle layered deterministically", JSON.stringify(og(CYCLE)) === JSON.stringify(
+  { g1: "1,1", g2: "5,1" }));
+
+// pins win; auto groups route around a pinned group's cells
+const PINNED_MIX = FORK + "placement:\n  groups:\n    ga: { origin: [5, 1] }\n";
+ok("flow-aware: pinned group kept, auto group avoids it",
+  JSON.stringify(og(PINNED_MIX)) === JSON.stringify({ src: "1,1", gb: "5,5" }));
+
+// upstream misalignment never pushes content to y < 1: auto groups shift down together
+const DEEP = `isokit: 1
+title: "DEEP"
+units:
+  s: { shape: box }
+  x: { shape: box }
+  y: { shape: box }
+groups:
+  src: { label: SRC, units: [s] }
+  dst: { label: DST, units: [x, y] }
+flows:
+  - { from: s, to: y }
+`;
+ok("flow-aware: shifted on-grid when alignment goes negative",
+  JSON.stringify(og(DEEP)) === JSON.stringify({ src: "1,4", dst: "5,1" }));
+
+// no flows between groups -> today's row placement, byte-for-byte
+ok("flow-aware: off without inter-group flows", og(PINNED) === null && og(AUTO) === null);
+
+// a flow-aware layout the guards reject (a dark estate upstream has no
+// separating seam) falls back to row placement rather than erroring
+const DARK_UP = `isokit: 1
+title: "DARK"
+estates:
+  cloud: {}
+  onprem: { tone: dark }
+units:
+  h: { shape: building }
+  v: { shape: box }
+groups:
+  op: { label: OP, units: [h], estate: onprem }
+  gw: { label: GW, units: [v], estate: cloud }
+flows:
+  - { from: h, to: v }
+`;
+let darkSvg = "";
+try { darkSvg = render(DARK_UP); } catch (e) { console.error(`FAIL dark-upstream fallback: ${e}`); fail++; }
+ok("flow-aware: guard failure falls back to rows",
+  darkSvg !== "" && darkSvg === derive(dg(DARK_UP), { flowAware: false }));
 
 // purity: render() core has no node: imports in module graph
 ok("render() equals derive pipeline", pureRender(PINNED) === svg);

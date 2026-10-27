@@ -235,8 +235,37 @@ engine (`unit`, `group`, `connect`, `annotate`, `plane`, `autoLabel`, `grid`,
    plane rect and its derived caption (via `autoLabel`, all collision rules
    applying) come from the packed extent.
 
-2. **Group origins** — pinned origins win verbatim. Unpinned groups auto-place
-   in declaration order: the default estate's unpinned groups fill a row
+2. **Group origins** — pinned origins win verbatim. Unpinned groups use
+   **flow-aware placement** when at least one flow connects units in two
+   different groups, and **row placement** otherwise.
+
+   *Flow-aware placement.* Each unpinned group stacks its members in a single
+   column (`cols: 1`, `gap: 1`), so a flow arriving from the left reaches any
+   member in a straight line. Groups are layered by their group-to-group
+   flows: a group sits one column to the right of every group that feeds it
+   (longest path; a cycle is broken at its first back-edge, found by a
+   depth-first walk in declaration order). Column `0` starts at `x = 1`; each
+   next column starts 2 cells past the widest group in the previous one.
+   Within a column, groups are placed in declaration order. Each takes the
+   `y` that puts the member receiving its first flow (in `flows:` order) from
+   an already-placed unit level with that unit, so the flow runs straight; a
+   group with no such flow starts at `y = 1`. A group that would come within
+   2 cells of anything already placed — another auto-placed group, a pinned
+   group, or a loose pin — moves down until it clears. Finally, if any
+   unpinned group ended above `y = 1`, every unpinned group shifts down by the
+   same amount. A left-to-right pipeline therefore derives as a staircase
+   down the iso diagonal with every group-to-group flow straight
+   (`examples/pipeline.yaml`).
+
+   *Fallback.* If the flow-aware layout trips any later guard — no estate
+   seam (step 3), `content-off-canvas`, or any `engine-guard` collision —
+   derivation silently reruns with row placement, so every document that
+   renders under row placement still renders. A dark estate that feeds the
+   rest of the diagram (on-prem sources, as in `examples/hybrid.yaml`) cannot
+   sit left of the default estate with a separating seam, so it always lands
+   on row placement.
+
+   *Row placement.* The default estate's unpinned groups fill a row
    starting at `(1, 1)`, each next group's origin `x` set to the previous
    group's right edge + 2. The dark estate's unpinned groups fill a second row
    starting at `(1, maxY + 3)`, where `maxY` is the deepest bottom edge among
@@ -416,5 +445,7 @@ undocumented concept:
 - **Flow labels** and per-flow exit/enter edge hints.
 - **Estate labels** — a caption for the estate itself, distinct from any
   group's label.
-- **Richer auto-placement** — flow-aware origin ordering, once v1 pin
-  patterns show what's worth deriving automatically.
+- **Richer auto-placement** — flow-aware placement (step 2) handles
+  left-to-right pipelines; hub-shaped topologies (one group fanning out to
+  neighbours on several sides, as in `examples/rag.yaml`) still need pins
+  for a tidy layout.

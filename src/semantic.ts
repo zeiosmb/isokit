@@ -44,7 +44,118 @@ export function packExtent(n: number, cols: number, gap: number): [number, numbe
 interface GroupPlan { name: string; g: GroupDef; origin: [number, number];
   cols: number; gap: number; pad: number; rect?: [number, number, number, number] }
 
-export function derive(d: Diagram): string {
+type Rect = [number, number, number, number];
+const GROUP_GAP = 2;   // cells between auto-placed groups' cell rects (row and flow placement alike)
+
+/** Flow-aware origins for every UNPINNED group (SPEC.md "Layout
+derivation", step 2), or null when the document has no flow between two
+different groups (row placement then applies unchanged). Unpinned groups
+stack their members in one column (cols 1, gap 1) so a flow arriving from
+the left reaches any member straight. Columns: each group sits one column
+right of the groups feeding it (longest-path layering over group-level
+flows; cycles broken at their first back-edge by a declaration-order DFS).
+Rows: each group shifts so the member its first placed feeder flows into
+sits level with that feeder; groups that would overlap anything already
+placed (auto, pinned, or loose pins) push down to clear it by GROUP_GAP. */
+export function flowOrigins(d: Diagram): Map<string, [number, number]> | null {
+  const owner = new Map<string, string>();
+  for (const [gn, g] of d.groups) for (const u of g.units) owner.set(u, gn);
+  const names = [...d.groups.keys()];
+  const auto = names.filter(n => !d.placeGroups.has(n));
+  const edges = d.flows.map(f => [owner.get(f.from), owner.get(f.to)] as const)
+    .filter((e): e is readonly [string, string] => !!e[0] && !!e[1] && e[0] !== e[1]);
+  if (!edges.length || !auto.length) return null;
+
+  const succ = new Map(names.map(n => [n, [] as string[]]));
+  for (const [a, b] of edges) if (!succ.get(a)!.includes(b)) succ.get(a)!.push(b);
+  const state = new Map<string, 1 | 2>();
+  const back = new Set<string>();
+  const dfs = (n: string): void => {
+    state.set(n, 1);
+    for (const m of succ.get(n)!) {
+      if (state.get(m) === 1) back.add(`${n}\0${m}`);
+      else if (!state.has(m)) dfs(m);
+    }
+    state.set(n, 2);
+  };
+  for (const n of names) if (!state.has(n)) dfs(n);
+  const layer = new Map(names.map(n => [n, 0]));
+  for (let i = 0; i < names.length; i++) {          // longest path; a DAG settles in n passes
+    for (const [a, b] of edges) {
+      if (!back.has(`${a}\0${b}`)) layer.set(b, Math.max(layer.get(b)!, layer.get(a)! + 1));
+    }
+  }
+
+  // member cell offsets inside a packed group (mirror of group()'s packing)
+  const colsOf = (n: string) => d.placeGroups.get(n)?.cols ?? (d.placeGroups.has(n) ? Math.ceil(Math.sqrt(d.groups.get(n)!.units.length)) : 1);
+  const gapOf = (n: string) => d.placeGroups.get(n)?.gap ?? 1;
+  const offset = (gn: string, unit: string): [number, number] => {
+    const i = d.groups.get(gn)!.units.indexOf(unit), c = colsOf(gn), step = 2 + gapOf(gn);
+    return [(i % c) * step, Math.floor(i / c) * step];
+  };
+  const extent = (gn: string) => packExtent(d.groups.get(gn)!.units.length, colsOf(gn), gapOf(gn));
+
+  const origin = new Map<string, [number, number]>();
+  for (const [n, p] of d.placeGroups) if (d.groups.has(n)) origin.set(n, p.origin);
+  const occupied: Rect[] = [];
+  for (const [n, o] of origin) { const [w, h] = extent(n); occupied.push([o[0], o[1], o[0] + w, o[1] + h]); }
+  for (const [, pin] of d.placeUnits) occupied.push([pin.at[0], pin.at[1], pin.at[0] + 2, pin.at[1] + 2]);
+  const unitPos = (u: string): [number, number] | null => {
+    const g = owner.get(u);
+    if (g === undefined) { const p = d.placeUnits.get(u); return p ? p.at : null; }
+    const o = origin.get(g);
+    if (!o) return null;
+    const [ox, oy] = offset(g, u);
+    return [o[0] + ox, o[1] + oy];
+  };
+
+  const maxLayer = Math.max(...auto.map(n => layer.get(n)!));
+  const colX: number[] = [1];
+  for (let l = 0; l < maxLayer; l++) {
+    const w = Math.max(2, ...auto.filter(n => layer.get(n) === l).map(n => extent(n)[0]));
+    colX.push(colX[l] + w + GROUP_GAP);
+  }
+  const order = auto.slice().sort((a, b) => layer.get(a)! - layer.get(b)! || names.indexOf(a) - names.indexOf(b));
+  for (const n of order) {
+    const [w, h] = extent(n);
+    const x = colX[layer.get(n)!];
+    let y = 1;
+    for (const f of d.flows) {
+      if (owner.get(f.to) !== n || owner.get(f.from) === n) continue;
+      const src = unitPos(f.from);
+      if (src) { y = src[1] - offset(n, f.to)[1]; break; }
+    }
+    for (let moved = true; moved;) {
+      moved = false;
+      for (const r of occupied) {
+        if (x < r[2] + GROUP_GAP && r[0] < x + w + GROUP_GAP && y < r[3] + GROUP_GAP && r[1] < y + h + GROUP_GAP) {
+          y = r[3] + GROUP_GAP; moved = true;
+        }
+      }
+    }
+    origin.set(n, [x, y]);
+    occupied.push([x, y, x + w, y + h]);
+  }
+  const autoOrigins = new Map(auto.map(n => [n, origin.get(n)!] as [string, [number, number]]));
+  const minY = Math.min(...[...autoOrigins.values()].map(o => o[1]));
+  if (minY < 1) for (const o of autoOrigins.values()) o[1] += 1 - minY;
+  return autoOrigins;
+}
+
+/** Render a validated diagram. Flow-aware placement is tried first when it
+applies; if that layout trips any guard (estate seam, off-canvas, engine
+collision), derivation reruns with row placement — so every document that
+rendered under row placement still renders. `flowAware: false` forces rows. */
+export function derive(d: Diagram, opts: { flowAware?: boolean } = {}): string {
+  const fo = opts.flowAware === false ? null : flowOrigins(d);
+  if (fo) {
+    try { return deriveWith(d, fo); }
+    catch (e) { if (!(e instanceof IsokitError)) throw e; }
+  }
+  return deriveWith(d, null);
+}
+
+function deriveWith(d: Diagram, flow: Map<string, [number, number]> | null): string {
   setTheme(d.theme);
   configure(46, 440, 48);
   resetUnits();
@@ -59,11 +170,12 @@ export function derive(d: Diagram): string {
   const darkRow: GroupPlan[] = [];
   for (const [name, g] of d.groups) {
     const p = d.placeGroups.get(name);
-    const cols = p?.cols ?? Math.ceil(Math.sqrt(g.units.length));
+    const fo = flow?.get(name);
+    const cols = p?.cols ?? (fo ? 1 : Math.ceil(Math.sqrt(g.units.length)));
     const gap = p?.gap ?? 1, pad = p?.pad ?? 0.6;
-    const pl: GroupPlan = { name, g, origin: p?.origin ?? [0, 0], cols, gap, pad };
+    const pl: GroupPlan = { name, g, origin: p?.origin ?? fo ?? [0, 0], cols, gap, pad };
     plans.push(pl);
-    if (!p) (isDark(g) ? darkRow : defaultRow).push(pl);
+    if (!p && !fo) (isDark(g) ? darkRow : defaultRow).push(pl);
   }
   const place = (row: GroupPlan[], y: number, x0: number): void => {
     let cx = x0;

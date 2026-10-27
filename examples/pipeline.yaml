@@ -1,8 +1,9 @@
 # examples/pipeline.yaml — a data/analytics pipeline from the general-purpose
 # primitives (docs, cluster, tiers, dashboard), a glyph-on-box stand-in for a
 # role with no dedicated shape (bolt = event stream), and a labelled drum.
-# Placement pins each stage as a column, offset so every flow runs straight:
-# a left-to-right pipeline reads as a staircase down the iso diagonal.
+# No placement block: flow-aware placement puts each stage one column right
+# of its feeder, level with the unit feeding it, so every flow runs straight
+# and the pipeline reads as a staircase down the iso diagonal.
 isokit: 1
 title: "ANALYTICS PIPELINE"
 theme: azure
@@ -39,9 +40,3 @@ annotations:
   dw: { title: Warehouse, note: serves gold tables over SQL. }
   bi: { title: Dashboards, note: reports on the warehouse. }
 
-placement:
-  groups:
-    sources: { origin: [1, 1], cols: 1 }
-    ingest: { origin: [5, 1], cols: 1 }
-    lakehouse: { origin: [9, 4], cols: 1 }
-    reporting: { origin: [13, 7] }

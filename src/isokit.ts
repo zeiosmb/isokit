@@ -88,6 +88,7 @@ const THEMES = {
     FW1: "#9e4a44", FW2: "#c05c52",                        // firewall brick / lit brick
     PH: "#1b1e26", PHS: "#2b2f3a", PHT: "#3b404d",          // phone body / side / top edge
     UI: "#5b8bd0",                                          // generic on-screen UI accent
+    SHIRT: "#8a63d2",                                       // people's shirts: never a chip/rim color
   },
   azure: {                                                 // Azure-marketing blues
     GROUND: "#3070b8", SEAM: "#265b9e", RAIL: "#1c4d8b",
@@ -104,6 +105,7 @@ const THEMES = {
     FW1: "#c0504b", FW2: "#d8746c",
     PH: "#1b1e26", PHS: "#2b2f3a", PHT: "#3b404d",
     UI: "#3a86d4",
+    SHIRT: "#8a63d2",
   },
 };
 
@@ -114,7 +116,7 @@ export let CYLTOP = "";
 export let CYLG: readonly [string, string, string] = ["", "", ""];
 export let RACK_SW = "", RACK_SE = "", RACK_TOP = "", FIN_SW = "", FIN_SE = "";
 export let KEYS = "", BBAR = "", BLINE = "", SWMID = "", SWLIT = "", FW1 = "", FW2 = "";
-export let PH = "", PHS = "", PHT = "", UI = "";
+export let PH = "", PHS = "", PHT = "", UI = "", SHIRT = "";
 export let GLYPHS: Record<string, string> = {};
 
 export function setTheme(name: keyof typeof THEMES): void {
@@ -126,7 +128,7 @@ export function setTheme(name: keyof typeof THEMES): void {
   RACK_SW = t.RACK_SW; RACK_SE = t.RACK_SE; RACK_TOP = t.RACK_TOP;
   FIN_SW = t.FIN_SW; FIN_SE = t.FIN_SE; KEYS = t.KEYS; BBAR = t.BBAR;
   BLINE = t.BLINE; SWMID = t.SWMID; SWLIT = t.SWLIT; FW1 = t.FW1; FW2 = t.FW2;
-  PH = t.PH; PHS = t.PHS; PHT = t.PHT; UI = t.UI;
+  PH = t.PH; PHS = t.PHS; PHT = t.PHT; UI = t.UI; SHIRT = t.SHIRT;
   GLYPHS = _buildGlyphs();
 }
 
@@ -794,10 +796,10 @@ function _mix(a: string, b: string, t: number): string {
 // shaded sphere head. Anchored at the ground point (X, Y) in screen px;
 // fixed px size (same footprint as the old billboard: head top Y-63.5).
 export function person(X: number, Y: number, holding = false, shirt: string | null = null): string {
-  // shirt (torso, sleeves, yoke) in the A1 accent sets people apart from the
-  // grey solids — every other theme color either vanishes on its own ground
-  // (blueprint A2 grey, azure A3 white, azure UI blue) or reads as hardware
-  const c = shirt ?? A1;
+  // shirt (torso, sleeves, yoke) sets people apart from the grey solids. Its
+  // own token, never A1: A1 is the numbered-chip color, and a person in chip
+  // red/green reads as part of the annotation layer
+  const c = shirt ?? SHIRT;
   const g: string[] = [];
   for (const dx of [-3.6, 3.6]) g.push(_pxCyl(X + dx, Y, 3.2, 0, 22));          // legs
   g.push(_pxCyl(X - 11.4, Y - 1, 2.4, 25, 43, c));                              // arms (right
@@ -822,7 +824,7 @@ export function personDevice(X: number, Y: number): string {
   const fa = `M ${pyf(X + 11.4, 1)} ${pyf(Y - 33, 1)} L ${pyf(X + 23, 1)} ${pyf(Y - 37, 1)}`;
   return person(X, Y, true)
     + `<path d="${fa}" stroke="${EDGE}" stroke-width="5.6" stroke-linecap="round" fill="none"/>`
-    + `<path d="${fa}" stroke="${A1}" stroke-width="4.6" stroke-linecap="round" fill="none"/>`
+    + `<path d="${fa}" stroke="${SHIRT}" stroke-width="4.6" stroke-linecap="round" fill="none"/>`
     + `<rect x="${pyf(X + 19.5, 1)}" y="${pyf(Y - 50.5, 1)}" width="10.5" height="16.5" rx="2" fill="${PH}" stroke="${EDGE}" stroke-width="0.8"/>`
     + `<rect x="${pyf(X + 21, 1)}" y="${pyf(Y - 49, 1)}" width="7.5" height="13" rx="0.8" fill="${SCR}"/>`
     + `<rect x="${pyf(X + 21, 1)}" y="${pyf(Y - 49, 1)}" width="7.5" height="3" fill="${UI}"/>`;

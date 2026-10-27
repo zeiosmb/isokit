@@ -1,7 +1,7 @@
 // tests/jsonschema.ts — TEST-ONLY minimal JSON Schema interpreter. Supports
 // exactly the keywords schema/isokit-1.json uses: type, enum, const,
 // required, properties, additionalProperties, items, minItems, maxItems,
-// maxProperties. It exists so the published schema cannot drift from the
+// maxProperties, maxLength. It exists so the published schema cannot drift from the
 // validator without a test failing; it is not a product surface.
 import type { YNode } from "../src/yaml.ts";
 
@@ -19,6 +19,7 @@ export function schemaOk(schema: any, v: unknown): boolean {
       : typeof v === "number" ? (Number.isInteger(v) ? "integer" : "number") : typeof v;
     if (schema.type === "number" ? (t !== "number" && t !== "integer") : schema.type !== t) return false;
   }
+  if (typeof v === "string" && schema.maxLength !== undefined && v.length > schema.maxLength) return false;
   if (Array.isArray(v)) {
     if (schema.minItems !== undefined && v.length < schema.minItems) return false;
     if (schema.maxItems !== undefined && v.length > schema.maxItems) return false;

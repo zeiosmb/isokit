@@ -103,20 +103,49 @@ else on either axis, that is `estate-straddle`, naming the straddling groups.
 
 ## Units
 
-Every unit has a `shape` (required) and may have a `glyph` and an `accent`.
+Every unit has a `shape` (required) and may have a `glyph`, an `accent`, and
+(on `cyl` only) a `label`.
 
-Shape enum (v1, 15 shapes): `box`, `cyl`, `rack`, `building`, `wall`, `queue`,
+Shape enum (v1, 21 shapes): `box`, `cyl`, `rack`, `building`, `wall`, `queue`,
 `store`, `slab`, `panel`, `padlock`, `users`, `laptop`, `monitor`, `phone`,
-`browser`.
+`browser`, `tiers`, `crate`, `dashboard`, `docs`, `die`, `cluster`.
+
+The last six are general-purpose primitives for non-infrastructure diagrams
+(data pipelines, AI/RAG applications, CI/CD, IoT). Each is named for its
+silhouette, not a product — pick by what the thing *is* in the diagram:
+
+| shape | silhouette | typical roles |
+| --- | --- | --- |
+| `tiers` | three separated layers on posts | lakehouse medallion layers, dev/stage/prod environments, model/app layers |
+| `crate` | corrugated shipping container | build artifacts, container images, packages, shipments |
+| `dashboard` | upright screen with a bar chart | BI reports, monitoring, observability |
+| `docs` | fanned stack of sheets | document corpora, RAG sources, reports, file drops |
+| `die` | pinned compute chip with a raised core | LLMs and other models, GPUs, inference, edge silicon |
+| `cluster` | 2x2 grid of node cubes on a base | Spark/Databricks pools, node pools, scale-out workers |
 
 (`person` is a screen-space primitive used internally by `users`; it is not a
 standalone shape in this format.)
 
-Glyph enum (v1, 7 glyphs): `gw`, `app`, `entra`, `kv`, `fn`, `doc`, `shield`.
+Glyph enum (v1, 15 glyphs): `gw`, `app`, `entra`, `kv`, `fn`, `doc`, `shield`,
+`gear`, `branch`, `chart`, `eye`, `bolt`, `sparkle`, `funnel`, `vector`.
+Typical roles for the later eight: `gear` tools/automation/build, `branch`
+source repository, `chart` analytics, `eye` monitoring/SIEM, `bolt` events
+and streams, `sparkle` AI agent or model, `funnel` filtering/ETL, `vector`
+embeddings.
 
-Only glyph-bearing shapes accept a `glyph`: `box` and `slab`. Declaring a
-glyph on any other shape is `glyph-unsupported-shape`, naming the shape and
-the glyph-bearing set.
+Only glyph-bearing shapes accept a `glyph`: `box` and `slab` (on a face),
+`tiers` (on its top layer), and `die` (on its core). Declaring a glyph on any
+other shape is `glyph-unsupported-shape`, naming the shape and the
+glyph-bearing set. When neither a dedicated shape nor an existing one fits a
+role, use `box` with the closest glyph — a glyph is the cheap way to say
+"what"; a shape is reserved for when the outline itself carries the meaning.
+
+`label` is the short text painted around a `cyl`'s drum (default `SQL`), e.g.
+`PG`, `VEC`, `DW`, `TXN`. At most 3 characters (`label-too-long` beyond
+that — the text wraps around the curved drum, and a 4th character lands on
+the drum's edge, foreshortened out of sight); any shape other than `cyl` is
+`label-unsupported-shape`. Put full names in the unit's annotation title,
+not the label.
 
 `accent` is an optional integer `1`, `2`, or `3`, mapping to the active
 theme's rim roles: `1` → A1, `2` → A2, `3` → A3. Any other value is
@@ -335,6 +364,8 @@ Every code below, one row each:
 | `estate-unknown` | groups | a group's `estate` names an undeclared estate |
 | `estate-straddle` | estates | no integer grid line separates the dark estate from the rest on either axis |
 | `glyph-unsupported-shape` | units | a `glyph` is declared on a shape that doesn't carry glyphs |
+| `label-unsupported-shape` | units | a `label` is declared on a shape other than `cyl` |
+| `label-too-long` | units | a `cyl` label is longer than 3 characters |
 | `group-unknown-unit` | groups | a group's `units` list names an undeclared unit |
 | `group-empty` | groups | a group's `units` list is empty |
 | `flow-unknown-unit` | flows | a flow's `from` or `to` names an undeclared unit |
@@ -358,11 +389,12 @@ consulted by the renderer — it exists for editor tooling (inline validation,
 autocomplete) and as a machine-readable enumeration of the format.
 
 What it checks: structure — required keys present, correct types, enum
-membership, closed value sets.
+membership, closed value sets, and the 3-character `label` limit.
 
-What it does not check: references — it cannot know whether a flow's `from`
-resolves to a declared unit, whether a unit is doubly-placed, or whether an
-estate boundary exists. Those are the validator's job (`src/schema.ts`) and
+What it does not check: references and cross-field rules — whether a
+`glyph` or `label` suits its unit's shape, whether a flow's `from` resolves
+to a declared unit, whether a unit is doubly-placed, or whether an estate
+boundary exists. Those are the validator's job (`src/schema.ts`) and
 only surface as the referential error codes above, never as a schema
 failure. A document can be structurally schema-valid and still be a
 referential error at validation time.

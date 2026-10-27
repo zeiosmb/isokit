@@ -18,6 +18,8 @@ try {
   }
   execFileSync("node", ["src/cli.ts", "render", "examples/minimal.yaml", "-o", path.join(staging, "Minimal.svg")], { cwd: root });
   execFileSync("node", ["src/cli.ts", "render", "examples/hybrid.yaml", "-o", path.join(staging, "Hybrid Semantic.svg")], { cwd: root });
+  execFileSync("node", ["src/cli.ts", "render", "examples/pipeline.yaml", "-o", path.join(staging, "Pipeline Semantic.svg")], { cwd: root });
+  execFileSync("node", ["src/cli.ts", "render", "examples/rag.yaml", "-o", path.join(staging, "RAG Semantic.svg")], { cwd: root });
 
   const { withControls } = await import(path.join(root, "src", "interactive.ts"));
   const names = fs.readdirSync(staging).sort();

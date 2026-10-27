@@ -1,0 +1,48 @@
+# examples/rag.yaml — a retrieval-augmented generation (RAG) assistant: an
+# agent grounds model calls in a vector index built from a document corpus.
+# Shows die (models), docs (corpus), glyphs on box for roles with no
+# dedicated shape (sparkle = agent, gear = tools), and a labelled drum.
+# Placement pins a hub: every flow is one straight run between neighbours.
+isokit: 1
+title: "RAG ASSISTANT"
+
+units:
+  staff: { shape: users }
+  agent: { shape: box, glyph: sparkle, accent: 3 }
+  tools: { shape: box, glyph: gear, accent: 3 }
+  llm: { shape: die, glyph: sparkle, accent: 1 }
+  embed: { shape: die, glyph: vector, accent: 2 }
+  vec: { shape: cyl, label: VEC, accent: 2 }
+  corpus: { shape: docs, accent: 2 }
+
+groups:
+  clients: { label: CLIENTS, units: [staff] }
+  app: { label: APPLICATION, units: [tools, agent] }
+  models: { label: MODELS, units: [llm, embed] }
+  index: { label: INDEX, units: [vec] }
+  sources: { label: SOURCES, units: [corpus] }
+
+flows:
+  - { from: staff, to: agent, style: sync }
+  - { from: agent, to: tools }
+  - { from: agent, to: llm }
+  - { from: agent, to: vec }
+  - { from: corpus, to: embed, style: data }
+  - { from: embed, to: vec, style: data }
+
+annotations:
+  staff: { title: Staff, note: chat with the assistant. }
+  agent: { title: Agent, note: "plans, retrieves context, then prompts the model." }
+  tools: { title: Tools, note: functions the agent may call. }
+  llm: { title: LLM, note: generates the grounded answer. }
+  embed: { title: Embedding model, note: vectorises chunks and queries. }
+  vec: { title: Vector index, note: nearest-neighbour retrieval. }
+  corpus: { title: Corpus, note: "policies and manuals, chunked." }
+
+placement:
+  groups:
+    clients: { origin: [1, 4] }
+    app: { origin: [5, 1], cols: 1 }
+    models: { origin: [10, 4], cols: 1, gap: 2 }
+    index: { origin: [5, 8] }
+    sources: { origin: [10, 12] }

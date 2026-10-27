@@ -7,15 +7,25 @@ import { IsokitError } from "./error.ts";
 import type { YNode, YMap, YList } from "./yaml.ts";
 
 export const SHAPE_NAMES = ["box", "slab", "panel", "cyl", "rack", "building", "wall",
-  "queue", "store", "users", "laptop", "phone", "browser", "padlock", "monitor"] as const;
-export const GLYPH_NAMES = ["gw", "app", "entra", "kv", "fn", "doc", "shield"] as const;
+  "queue", "store", "users", "laptop", "phone", "browser", "padlock", "monitor",
+  "tiers", "crate", "dashboard", "docs", "die", "cluster"] as const;
+export const GLYPH_NAMES = ["gw", "app", "entra", "kv", "fn", "doc", "shield",
+  "gear", "branch", "chart", "eye", "bolt", "sparkle", "funnel", "vector"] as const;
+// shapes whose function reads kw.glyph (box/slab on a face, tiers on its top
+// layer, die on its raised core) — and the only shape that reads kw.label
+export const GLYPH_SHAPES: readonly ShapeName[] = ["box", "slab", "tiers", "die"];
+export const LABEL_SHAPES: readonly ShapeName[] = ["cyl"];
+// drum text is centred at the SW-facing azimuth (-pi/4), ~0.28 rad per char:
+// a 4th char lands past -1.2 rad, foreshortened to a sliver at the drum's
+// left silhouette (measured: OLTP's O vanished) — 3 is the legible limit
+export const LABEL_MAX = 3;
 const THEME_NAMES = ["blueprint", "azure"] as const;
 const STYLE_NAMES = ["request", "data", "sync"] as const;
 
 export type ShapeName = typeof SHAPE_NAMES[number];
 export type GlyphName = typeof GLYPH_NAMES[number];
 
-export interface UnitDef { shape: ShapeName; glyph?: GlyphName; accent?: 1 | 2 | 3; line: number }
+export interface UnitDef { shape: ShapeName; glyph?: GlyphName; accent?: 1 | 2 | 3; label?: string; line: number }
 export interface GroupDef { label: string; units: string[]; estate?: string; line: number }
 export interface FlowDef { from: string; to: string; style: "request" | "data" | "sync"; line: number }
 export interface AnnotationDef { unit: string; title: string; note: string; line: number }
@@ -132,7 +142,7 @@ export function validate(doc: YNode): Diagram {
     "add at least one unit under units:");
   for (const [name, v] of uNode.entries) {
     const um = asMap(v, "units", `units.${name}`);
-    noUnknown(um, ["shape", "glyph", "accent"], "units", `units.${name}`);
+    noUnknown(um, ["shape", "glyph", "accent", "label"], "units", `units.${name}`);
     const u: UnitDef = {
       shape: asEnum(need(um, "shape", "units", `units.${name}.shape`), SHAPE_NAMES,
         "units", `units.${name}.shape`),
@@ -146,6 +156,14 @@ export function validate(doc: YNode): Diagram {
       if (n < 1 || n > 3) err("enum-invalid", "units", a, `units.${name}.accent`,
         `accent ${n} is not valid. Valid options: 1, 2, 3.`, "use accent 1, 2, or 3");
       u.accent = n as 1 | 2 | 3;
+    }
+    const lb = get(um, "label");
+    if (lb) {
+      const t = asStr(lb, "units", `units.${name}.label`);
+      if (t.length > LABEL_MAX) err("label-too-long", "units", lb, `units.${name}.label`,
+        `label "${t}" is ${t.length} characters; a drum label holds at most ${LABEL_MAX}.`,
+        `abbreviate to ${LABEL_MAX} characters or fewer (e.g. PG, VEC, DW, TXN)`);
+      u.label = t;
     }
     units.set(name, u);
   }
@@ -245,12 +263,15 @@ export function validate(doc: YNode): Diagram {
     }
   }
 
-  const GLYPH_SHAPES = new Set(["box", "slab"]);   // the only shapes that read kw.glyph
   for (const [name, u] of units) {
-    if (u.glyph && !GLYPH_SHAPES.has(u.shape))
+    if (u.glyph && !GLYPH_SHAPES.includes(u.shape))
       err("glyph-unsupported-shape", "units", u, `units.${name}.glyph`,
-        `shape "${u.shape}" does not render a glyph; only box and slab do.`,
-        "remove the glyph, or use shape box or slab");
+        `shape "${u.shape}" does not render a glyph; only ${GLYPH_SHAPES.join(", ")} do.`,
+        `remove the glyph, or use one of: ${GLYPH_SHAPES.join(", ")}`);
+    if (u.label !== undefined && !LABEL_SHAPES.includes(u.shape))
+      err("label-unsupported-shape", "units", u, `units.${name}.label`,
+        `shape "${u.shape}" does not render a label; only ${LABEL_SHAPES.join(", ")} does.`,
+        "remove the label (put the name in an annotation title instead), or use shape cyl");
     if (groups.has(name)) err("name-collision", "units", u, `units.${name}`,
       `"${name}" names both a unit and a group; flows reference units by name, so this is ambiguous.`,
       "rename one of them");

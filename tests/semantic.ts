@@ -175,6 +175,59 @@ catch (e) {
   ok("off-canvas code", e instanceof IsokitError && (e as IsokitError).code === "content-off-canvas");
 }
 
+// new primitives render and annotate through YAML; glyph-bearing ones carry
+// their glyph; a cyl label replaces the default SQL drum text
+const PRIMS = `isokit: 1
+title: "PRIMS"
+units:
+  t: { shape: tiers, glyph: sparkle, accent: 2 }
+  c: { shape: crate, accent: 1 }
+  d: { shape: dashboard, accent: 1 }
+  k: { shape: docs }
+  m: { shape: die, glyph: vector, accent: 3 }
+  n: { shape: cluster, accent: 2 }
+  v: { shape: cyl, label: VEC }
+groups:
+  g: { label: PRIMITIVES, units: [t, c, d, k, m, n, v] }
+annotations:
+  t: { title: Tiers, note: layered. }
+  c: { title: Crate, note: container. }
+  d: { title: Dashboard, note: screen. }
+  k: { title: Docs, note: sheets. }
+  m: { title: Die, note: chip. }
+  n: { title: Cluster, note: nodes. }
+  v: { title: Vectors, note: drum label. }
+`;
+let primSvg = "";
+try { primSvg = render(PRIMS); } catch (e) { console.error(`FAIL primitives render: ${e}`); fail++; }
+ok("all seven chips drawn", primSvg.includes(">7</text>"));
+ok("cyl label reaches the drum", primSvg.includes(">V</text>") && primSvg.includes(">E</text>"));
+ok("default SQL text replaced", !primSvg.includes(">Q</text>"));
+ok("vector glyph drawn on die", primSvg.includes('cx="27" cy="22" r="4.4"'));
+ok("default cyl still says SQL", render(PINNED).includes(">Q</text>"));
+
+// group captions must be placed AFTER flows exist (STYLE.md: autoLabel can
+// only avoid what is already declared) — a flow entering a group across its
+// canonical caption spot must push the caption elsewhere, not hard-error
+const CAPTION_VS_FLOW = `isokit: 1
+title: "CAP"
+units:
+  t: { shape: box }
+  a: { shape: box }
+  m: { shape: die }
+groups:
+  app: { label: APPLICATION, units: [t, a] }
+  models: { label: MODELS, units: [m] }
+flows:
+  - { from: a, to: m }
+placement:
+  groups:
+    app: { origin: [5, 1], cols: 1 }
+    models: { origin: [10, 4] }
+`;
+try { ok("caption dodges a flow", render(CAPTION_VS_FLOW).includes("APPLICATION")); }
+catch (e) { console.error(`FAIL caption dodges a flow: ${e}`); fail++; }
+
 // purity: render() core has no node: imports in module graph
 ok("render() equals derive pipeline", pureRender(PINNED) === svg);
 

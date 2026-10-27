@@ -10,6 +10,7 @@ import {
   MONOQ, INK, A1, A2, A3, GLYPHS,
   box, slab, panel, cyl, rack, building, wall, queue, store, users,
   laptop, phone, browser, padlock, monitor,
+  tiers, crate, dashboard, docs, die, cluster,
 } from "./isokit.ts";
 import type { Kw } from "./isokit.ts";
 
@@ -17,6 +18,7 @@ type ShapeFn = (x: number, y: number, kw?: Kw) => string;
 const SHAPES: Record<ShapeName, ShapeFn> = {
   box, slab, panel, cyl, rack, building, wall, queue, store, users,
   laptop, phone, browser, padlock, monitor,
+  tiers, crate, dashboard, docs, die, cluster,
 };
 
 function guarded<T>(fn: () => T, line: number | undefined, path: string, fix: string): T {
@@ -181,6 +183,7 @@ export function derive(d: Diagram): string {
     const kw: Kw = {};
     if (u.accent) kw.rim = [A1, A2, A3][u.accent - 1];
     if (u.glyph) kw.glyph = GLYPHS[u.glyph];
+    if (u.label !== undefined) kw.label = u.label;
     return kw;
   };
 
@@ -203,11 +206,11 @@ export function derive(d: Diagram): string {
     x1: Math.max(18, maxCellX + 3), y1: Math.max(16, maxCellY + 3),
     clip_w: W - railW, clip_h: H, seam,
   }));
+  const labelAt: number[] = [];   // S index right after each group's plane
   for (const pl of plans) {
     S.push(guarded(() => plane(...pl.rect!), pl.g.line, `groups.${pl.name}`,
       "adjust the group origin or pad"));
-    S.push(guarded(() => autoLabel(pl.g.label, pl.rect!), pl.g.line,
-      `groups.${pl.name}.label`, "shorten the label or enlarge the group"));
+    labelAt.push(S.length);
   }
   for (const f of d.flows) {
     const pfi = d.placeFlows.findIndex(p => p.from === f.from && p.to === f.to);
@@ -220,6 +223,12 @@ export function derive(d: Diagram): string {
     S.push(guarded(() => connect(f.from, f.to, via ? { style: f.style, via } : { style: f.style }),
       line, path, fix));
   }
+  // captions are PLACED after every flow is declared (autoLabel can only
+  // avoid what already exists — STYLE.md), but their markup stays beside
+  // each plane in paint order; splice back-to-front so indices hold
+  const labels = plans.map(pl => guarded(() => autoLabel(pl.g.label, pl.rect!), pl.g.line,
+    `groups.${pl.name}.label`, "shorten the label or enlarge the group"));
+  for (let i = plans.length - 1; i >= 0; i--) S.splice(labelAt[i], 0, labels[i]);
   S.push(renderUnits());
   if (d.annotations.length) {
     for (const a of d.annotations) {

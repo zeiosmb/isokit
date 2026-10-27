@@ -31,7 +31,8 @@ export interface Kw {
   h?: number; r?: number; gk?: number;
   with_plate?: boolean;
   n?: number; fins?: number; cols?: number; rows?: number; segs?: number;
-  layers?: number; lh?: number;
+  layers?: number; lh?: number; gap?: number; rims?: string[] | null; bare?: boolean;
+  ribs?: number; bars?: number[]; sheets?: number; pins?: number;
   w?: number; d?: number; hb?: number; hs?: number; z0?: number; it?: number;
   cells?: [number, number] | null;
 }
@@ -85,6 +86,8 @@ const THEMES = {
     KEYS: "#bcc3cf", BBAR: "#7f8798", BLINE: "#b9c0cc",
     SWMID: "#8b93a8", SWLIT: "#bfc7d4",
     FW1: "#9e4a44", FW2: "#c05c52",                        // firewall brick / lit brick
+    PH: "#1b1e26", PHS: "#2b2f3a", PHT: "#3b404d",          // phone body / side / top edge
+    UI: "#5b8bd0",                                          // generic on-screen UI accent
   },
   azure: {                                                 // Azure-marketing blues
     GROUND: "#3070b8", SEAM: "#265b9e", RAIL: "#1c4d8b",
@@ -99,6 +102,8 @@ const THEMES = {
     KEYS: "#c0c8d4", BBAR: "#8290a6", BLINE: "#bcc5d4",
     SWMID: "#8b93a8", SWLIT: "#bfc7d4",
     FW1: "#c0504b", FW2: "#d8746c",
+    PH: "#1b1e26", PHS: "#2b2f3a", PHT: "#3b404d",
+    UI: "#3a86d4",
   },
 };
 
@@ -109,6 +114,7 @@ export let CYLTOP = "";
 export let CYLG: readonly [string, string, string] = ["", "", ""];
 export let RACK_SW = "", RACK_SE = "", RACK_TOP = "", FIN_SW = "", FIN_SE = "";
 export let KEYS = "", BBAR = "", BLINE = "", SWMID = "", SWLIT = "", FW1 = "", FW2 = "";
+export let PH = "", PHS = "", PHT = "", UI = "";
 export let GLYPHS: Record<string, string> = {};
 
 export function setTheme(name: keyof typeof THEMES): void {
@@ -120,6 +126,7 @@ export function setTheme(name: keyof typeof THEMES): void {
   RACK_SW = t.RACK_SW; RACK_SE = t.RACK_SE; RACK_TOP = t.RACK_TOP;
   FIN_SW = t.FIN_SW; FIN_SE = t.FIN_SE; KEYS = t.KEYS; BBAR = t.BBAR;
   BLINE = t.BLINE; SWMID = t.SWMID; SWLIT = t.SWLIT; FW1 = t.FW1; FW2 = t.FW2;
+  PH = t.PH; PHS = t.PHS; PHT = t.PHT; UI = t.UI;
   GLYPHS = _buildGlyphs();
 }
 
@@ -319,6 +326,29 @@ function _buildGlyphs(): Record<string, string> {
       + `fill="${GLY}"/>`
       + `<path d="M 13.5 19.5 L 18.5 24.5 L 27 15" fill="none" stroke="${TOPF}" `
       + `stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>`,
+    gear: `<g fill="${GLY}">`
+      + [0, 45, 90, 135, 180, 225, 270, 315].map(a =>
+        `<rect x="16.5" y="2.5" width="7" height="9" transform="rotate(${a} 20 20)"/>`).join("")
+      + `</g><circle cx="20" cy="20" r="10" fill="none" stroke="${GLY}" stroke-width="6"/>`,
+    branch: `<line x1="13" y1="9" x2="13" y2="31" stroke="${GLY}" stroke-width="4"/>`
+      + `<path d="M 28 16 Q 28 25 13 27" fill="none" stroke="${GLY}" stroke-width="4"/>`
+      + `<circle cx="13" cy="8" r="4.8" fill="${GLY}"/><circle cx="13" cy="32" r="4.8" fill="${GLY}"/>`
+      + `<circle cx="28" cy="12" r="4.8" fill="${GLY}"/>`,
+    chart: `<rect x="6" y="21" width="7.5" height="13" fill="${GLY}"/>`
+      + `<rect x="16.3" y="13" width="7.5" height="21" fill="${GLY}"/>`
+      + `<rect x="26.6" y="6" width="7.5" height="28" fill="${GLY}"/>`
+      + `<line x1="3" y1="36" x2="37" y2="36" stroke="${GLY}" stroke-width="3.5"/>`,
+    eye: `<path d="M 3 20 Q 20 4 37 20 Q 20 36 3 20 Z" fill="none" stroke="${GLY}" stroke-width="3.8"/>`
+      + `<circle cx="20" cy="20" r="6.5" fill="${GLY}"/>`,
+    bolt: `<polygon points="24,3 8,23 18,23 14,37 32,15 22,15 27,3" fill="${GLY}"/>`,
+    sparkle: `<path d="M 17 4 Q 19 17 31 20 Q 19 23 17 36 Q 15 23 3 20 Q 15 17 17 4 Z" fill="${GLY}"/>`
+      + `<path d="M 31 2 Q 32 7.5 37.5 9 Q 32 10.5 31 16 Q 30 10.5 24.5 9 Q 30 7.5 31 2 Z" fill="${GLY}"/>`,
+    funnel: `<polygon points="3,6 37,6 23.5,21 23.5,34 16.5,37.5 16.5,21" fill="${GLY}"/>`,
+    vector: `<g stroke="${GLY}" stroke-width="3">`
+      + `<line x1="8" y1="30" x2="15" y2="11"/><line x1="15" y1="11" x2="27" y2="22"/>`
+      + `<line x1="27" y1="22" x2="33" y2="8"/><line x1="27" y1="22" x2="31" y2="33"/></g>`
+      + `<g fill="${GLY}"><circle cx="8" cy="30" r="4"/><circle cx="15" cy="11" r="4"/>`
+      + `<circle cx="27" cy="22" r="4.4"/><circle cx="33" cy="8" r="4"/><circle cx="31" cy="33" r="4"/></g>`,
   };
 }
 
@@ -533,25 +563,297 @@ export function store(x: number, y: number, kw: Kw = {}): string {
   return g.join("");
 }
 
+// ---- primitives for non-infrastructure diagram families (pipelines, AI,
+// CI/CD, IoT): each is a reusable outline, not a domain-specific product
+// icon — the meaning comes from the silhouette, the role from glyph + rim.
+
+/** One closed iso prism from z0 to z1 (visible faces only: SW, SE, top). */
+function _prism(x: number, y: number, sx: number, sy: number, z0: number, z1: number,
+  rim: string | null | undefined, top: string = TOPF): string {
+  const sw = [iso(x, y + sy, z1), iso(x + sx, y + sy, z1), iso(x + sx, y + sy, z0), iso(x, y + sy, z0)];
+  const se = [iso(x + sx, y, z1), iso(x + sx, y + sy, z1), iso(x + sx, y + sy, z0), iso(x + sx, y, z0)];
+  return poly(sw, { fill: SWF, stroke: EDGE, stroke_width: 0.5, opacity: 0.98 })
+    + poly(se, { fill: SEF, stroke: EDGE, stroke_width: 0.5, opacity: 0.98 })
+    + poly(zrect(x, y, x + sx, y + sy, z1), { fill: top, stroke: rim || EDGE, stroke_width: 2.5 });
+}
+
+/** Glyph lying flat on a top face at height z, centered in an sx*sy rect. */
+function _topGlyph(x: number, y: number, sx: number, sy: number, z: number, glyph: string, gk: number): string {
+  const [Tx, Ty] = iso(x, y, z);
+  const gx = sx * U / 2 - 20 * gk, gy = sy * U / 2 - 20 * gk;
+  return `<g transform="matrix(0.866,0.5,-0.866,0.5,${pyf(Tx, 1)},${pyf(Ty, 1)})">`
+    + `<g transform="translate(${pyf(gx, 1)},${pyf(gy, 1)}) scale(${gk})">${glyph}</g></g>`;
+}
+
+// layered tiers: separated slabs floating over each other with air gaps —
+// medallion lake layers, dev/stage/prod environments, model/app layers.
+// `rims` colors each layer bottom-up (falls back to `rim`).
+export function tiers(x: number, y: number, kw: Kw = {}): string {
+  const { rim, rims = null, glyph = null, s = 1.4, layers = 3, lh = 0.14, gap = 0.2, gk = 0.9 } = kw;
+  const g = [plate(x, y, s)];
+  for (let i = 0; i < layers; i++) {
+    const z0 = i * (lh + gap), z1 = z0 + lh;
+    const r = rims ? rims[i % rims.length] : rim;
+    if (i > 0) {   // short posts in the gap so the layers read as one stack
+      for (const [px, py] of [[x + 0.06, y + s - 0.06], [x + s - 0.06, y + s - 0.06], [x + s - 0.06, y + 0.06]] as Pt[]) {
+        g.push(pline([iso(px, py, z0 - gap), iso(px, py, z0)], { stroke: EDGE, stroke_width: 2.2 }));
+      }
+    }
+    g.push(_prism(x, y, s, s, z0, z1, r));
+    // rim also on the front top edges: a lower layer's top face is hidden
+    // by the one above, so its role color must live on the visible edge
+    g.push(pline([iso(x, y + s, z1), iso(x + s, y + s, z1), iso(x + s, y, z1)],
+      { stroke: r || EDGE, stroke_width: 3.2 }));
+  }
+  if (glyph) g.push(_topGlyph(x, y, s, s, layers * (lh + gap) - gap, glyph, gk));
+  return g.join("");
+}
+function _tiersH(kw: Kw): number {
+  const { layers = 3, lh = 0.14, gap = 0.2 } = kw;
+  return layers * (lh + gap) - gap;
+}
+
+// shipping container / package crate: corrugated long side, double door on
+// the SE end — artifacts, container images, shipments.
+export function crate(x: number, y: number, kw: Kw = {}): string {
+  const { rim, s = 1.4, h = 0.8, ribs = 9 } = kw;
+  const sy = 0.84, by = y + (s - sy) / 2;
+  const g = [plate(x, y, s), _prism(x, by, s, sy, 0, h, rim)];
+  const [Ax, Ay] = iso(x, by + sy, h), [Bx, By] = iso(x + s, by, h);
+  const fw = s * U, fh = h * U, ew = sy * U, m: string[] = [];
+  for (let i = 1; i < ribs; i++) {        // corrugation on the SW face
+    const rx_ = fw * i / ribs;
+    m.push(`<line x1="${pyf(rx_, 1)}" y1="3" x2="${pyf(rx_, 1)}" y2="${pyf(fh - 3, 1)}" stroke="${SEF}" stroke-width="2.4"/>`);
+  }
+  g.push(`<g transform="matrix(0.866,0.5,0,1,${pyf(Ax, 1)},${pyf(Ay, 1)})">${m.join("")}</g>`);
+  const d: string[] = [];                  // SE end: door split + two lock bars
+  d.push(`<line x1="${pyf(ew / 2, 1)}" y1="2" x2="${pyf(ew / 2, 1)}" y2="${pyf(fh - 2, 1)}" stroke="${EDGE}" stroke-width="1.6"/>`);
+  for (const f of [0.3, 0.7]) {
+    d.push(`<line x1="${pyf(ew * f, 1)}" y1="5" x2="${pyf(ew * f, 1)}" y2="${pyf(fh - 5, 1)}" stroke="${GLY}" stroke-width="2.6"/>`);
+  }
+  g.push(`<g transform="matrix(-0.866,0.5,0,1,${pyf(Bx, 1)},${pyf(By, 1)})">${d.join("")}</g>`);
+  return g.join("");
+}
+function _crateBody(x: number, y: number, s: number, kw: Kw): Pt[] {
+  const h = kw.h ?? 0.8, sy = 0.84, by = y + (s - sy) / 2;
+  return [iso(x, by, h), iso(x + s, by, h), iso(x + s, by + sy, h), iso(x, by + sy, h),
+    iso(x, by), iso(x + s, by), iso(x + s, by + sy), iso(x, by + sy)];
+}
+
+// dashboard: upright display board on a low foot, bar chart + trend line on
+// the SW screen — BI/reporting, monitoring, observability.
+export function dashboard(x: number, y: number, kw: Kw = {}): string {
+  const { rim, s = 1.4, h = 0.92, bars = [0.45, 0.7, 0.55, 0.9] } = kw;
+  const w = s - 0.1, d = 0.09, z0 = 0.14, bx = x + 0.05, by = y + s / 2 - d / 2;
+  const g = [plate(x, y, s)];
+  g.push(_prism(x + 0.15, y + s / 2 - 0.22, s - 0.3, 0.44, 0, 0.08, EDGE));   // foot
+  g.push(screenSlab(bx, by, { w, d, h, z0, it: 0.06 }));
+  const [Tx, Ty] = iso(bx, by + d, z0 + h);
+  const fw = w * U, fh = h * U, padX = fw * 0.12, base = fh * 0.86, top = fh * 0.22;
+  const n = bars.length, slot = (fw - 2 * padX) / n, m: string[] = [];
+  m.push(`<rect x="${pyf(padX * 0.6, 1)}" y="${pyf(fh * 0.07, 1)}" width="${pyf(fw * 0.3, 1)}" height="4" fill="${BBAR}"/>`);
+  bars.forEach((v: number, i: number) => {
+    const bh = (base - top) * v;
+    m.push(`<rect x="${pyf(padX + slot * i + slot * 0.18, 1)}" y="${pyf(base - bh, 1)}" `
+      + `width="${pyf(slot * 0.64, 1)}" height="${pyf(bh, 1)}" fill="${i === n - 1 ? (rim || GLY) : BBAR}"/>`);
+  });
+  m.push(`<line x1="${pyf(padX * 0.6, 1)}" y1="${pyf(base, 1)}" x2="${pyf(fw - padX * 0.6, 1)}" y2="${pyf(base, 1)}" stroke="${GLY}" stroke-width="2"/>`);
+  g.push(`<g transform="matrix(0.866,0.5,0,1,${pyf(Tx, 1)},${pyf(Ty, 1)})">${m.join("")}</g>`);
+  if (rim) g.push(pline([iso(bx, by, z0 + h), iso(bx + w, by, z0 + h), iso(bx + w, by + d, z0 + h)], { stroke: rim, stroke_width: 2.5 }));
+  return g.join("");
+}
+function _dashBody(x: number, y: number, s: number, kw: Kw): Pt[] {
+  const h = kw.h ?? 0.92, d = 0.09, z0 = 0.14, bx = x + 0.05, by = y + s / 2 - d / 2, w = s - 0.1;
+  return [iso(bx, by, z0 + h), iso(bx + w, by, z0 + h), iso(bx + w, by + d, z0 + h), iso(bx, by + d, z0 + h),
+    iso(x + 0.15, y + s / 2 - 0.22), iso(x + s - 0.15, y + s / 2 - 0.22),
+    iso(x + s - 0.15, y + s / 2 + 0.22), iso(x + 0.15, y + s / 2 + 0.22)];
+}
+
+// document stack: fanned sheets, top sheet dog-eared with text lines —
+// corpora, RAG sources, reports, contracts.
+export function docs(x: number, y: number, kw: Kw = {}): string {
+  const { rim, s = 1.4, sheets = 3 } = kw;
+  const sx = 0.92, sy = 1.08, th = 0.05, step = 0.11, dz = 0.1;
+  const g = [plate(x, y, s)];
+  const x0 = x + (s - sx) / 2 + step * (sheets - 1) / 2, y0 = y + (s - sy) / 2 + step * (sheets - 1) / 2;
+  let tx = x0, ty = y0, tz = 0;
+  for (let i = 0; i < sheets - 1; i++) {
+    tx = x0 - i * step; ty = y0 - i * step; tz = i * dz;
+    g.push(_prism(tx, ty, sx, sy, tz, tz + th, EDGE, SWF));
+  }
+  // top sheet: right (far +x/-y) corner folded over — cut the face, then lay
+  // the folded flap on top of the sheet
+  tx = x0 - (sheets - 1) * step; ty = y0 - (sheets - 1) * step; tz = (sheets - 1) * dz;
+  const zt = tz + th, f = 0.28;
+  g.push(poly([iso(tx, ty + sy, zt), iso(tx + sx, ty + sy, zt), iso(tx + sx, ty + sy, tz), iso(tx, ty + sy, tz)],
+    { fill: SWF, stroke: EDGE, stroke_width: 0.5 }));
+  g.push(poly([iso(tx + sx, ty + f, zt), iso(tx + sx, ty + sy, zt), iso(tx + sx, ty + sy, tz), iso(tx + sx, ty + f, tz)],
+    { fill: SEF, stroke: EDGE, stroke_width: 0.5 }));
+  g.push(poly([iso(tx, ty, zt), iso(tx + sx - f, ty, zt), iso(tx + sx, ty + f, zt), iso(tx + sx, ty + sy, zt), iso(tx, ty + sy, zt)],
+    { fill: TOPF, stroke: rim || EDGE, stroke_width: 2.5 }));
+  g.push(poly([iso(tx + sx - f, ty, zt), iso(tx + sx, ty + f, zt), iso(tx + sx - f, ty + f, zt)],
+    { fill: SWF, stroke: EDGE, stroke_width: 1 }));
+  for (const [k, len] of [[0.28, 0.62], [0.44, 0.7], [0.6, 0.7], [0.76, 0.45]] as Pt[]) {
+    g.push(pline([iso(tx + 0.14, ty + sy * k, zt), iso(tx + 0.14 + len * (sx - 0.28), ty + sy * k, zt)],
+      { stroke: GLY, stroke_width: 2.6, opacity: 0.8 }));
+  }
+  return g.join("");
+}
+
+// compute die: pinned substrate with a raised core — GPU/TPU, model
+// inference, edge silicon. Glyph (or label) lies on the core.
+export function die(x: number, y: number, kw: Kw = {}): string {
+  const { rim, glyph = null, s = 1.4, pins = 4, gk = 0.7 } = kw;
+  const b = 1.0, o = (s - b) / 2, bx = x + o, by = y + o, bh = 0.12, ph = 0.06, pl = 0.16;
+  const g = [plate(x, y, s)];
+  const pin = (px: number, py: number, sx: number, sy: number) => _prism(px, py, sx, sy, 0, ph, EDGE, KEYS);
+  const pw = 0.11, gapP = (b - 0.2) / pins;
+  for (let i = 0; i < pins; i++) {         // back edges first (painter's order)
+    const t = 0.1 + gapP * (i + 0.5) - pw / 2;
+    g.push(pin(bx + t, by - pl, pw, pl), pin(bx - pl, by + t, pl, pw));
+  }
+  g.push(_prism(bx, by, b, b, 0, bh, EDGE, RACK_TOP));
+  for (let i = 0; i < pins; i++) {
+    const t = 0.1 + gapP * (i + 0.5) - pw / 2;
+    g.push(pin(bx + t, by + b, pw, pl), pin(bx + b, by + t, pl, pw));
+  }
+  const c = 0.62, co = (b - c) / 2;
+  g.push(_prism(bx + co, by + co, c, c, bh, bh + 0.14, rim));
+  if (glyph) g.push(_topGlyph(bx + co, by + co, c, c, bh + 0.14, glyph, gk));
+  return g.join("");
+}
+
+// compute cluster: a grid of small node cubes on a shared base — worker
+// pools, Spark/Databricks clusters, node pools, scale-out services.
+export function cluster(x: number, y: number, kw: Kw = {}): string {
+  const { rim, s = 1.4, n = 2, h = 0.55 } = kw;
+  const g = [plate(x, y, s), _prism(x, y, s, s, 0, 0.08, EDGE, SWF)];
+  const gp = 0.14, c = (s - gp * (n + 1)) / n;
+  const cells: Pt[] = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) cells.push([i, j]);
+  cells.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
+  for (const [i, j] of cells) {
+    g.push(_prism(x + gp + i * (c + gp), y + gp + j * (c + gp), c, c, 0.08, 0.08 + h, rim));
+  }
+  return g.join("");
+}
+
 // ---- devices & people (billboard-ish real shapes) ----
-export function person(X: number, Y: number): string {
-  return `<circle cx="${pyf(X, 1)}" cy="${pyf(Y - 56, 1)}" r="7.5" fill="${INK}"/>`
-    + `<path d="M ${pyf(X - 11, 1)} ${pyf(Y - 45, 1)} Q ${pyf(X, 1)} ${pyf(Y - 51, 1)} ${pyf(X + 11, 1)} ${pyf(Y - 45, 1)} `
-    + `L ${pyf(X + 11, 1)} ${pyf(Y - 24, 1)} Q ${pyf(X + 11, 1)} ${pyf(Y - 20, 1)} ${pyf(X + 7, 1)} ${pyf(Y - 20, 1)} `
-    + `L ${pyf(X + 7, 1)} ${pyf(Y, 1)} L ${pyf(X + 2, 1)} ${pyf(Y, 1)} L ${pyf(X + 2, 1)} ${pyf(Y - 16, 1)} `
-    + `L ${pyf(X - 2, 1)} ${pyf(Y - 16, 1)} L ${pyf(X - 2, 1)} ${pyf(Y, 1)} L ${pyf(X - 7, 1)} ${pyf(Y, 1)} `
-    + `L ${pyf(X - 7, 1)} ${pyf(Y - 20, 1)} Q ${pyf(X - 11, 1)} ${pyf(Y - 20, 1)} ${pyf(X - 11, 1)} ${pyf(Y - 24, 1)} Z" fill="${INK}"/>`;
+/** Upright iso cylinder in screen px: ground center (cx, cy), radius r px
+along the grid axes (true iso ellipse, as cyl()), from height z0 to z1 px.
+Body takes cyl()'s left-lit gradient; the top cap is the lit face. */
+function _pxCyl(cx: number, cy: number, r: number, z0: number, z1: number, color: string | null = null): string {
+  const rx = 1.2247 * r, ry = 0.577 * rx, yb = cy - z0, yt = cy - z1;
+  const body = `M ${pyf(cx - rx, 1)} ${pyf(yt, 1)} L ${pyf(cx - rx, 1)} ${pyf(yb, 1)} `
+    + `A ${pyf(rx, 1)} ${pyf(ry, 1)} 0 0 0 ${pyf(cx + rx, 1)} ${pyf(yb, 1)} L ${pyf(cx + rx, 1)} ${pyf(yt, 1)} Z`;
+  const cap = (fill: string) => `<ellipse cx="${pyf(cx, 1)}" cy="${pyf(yt, 1)}" rx="${pyf(rx, 1)}" ry="${pyf(ry, 1)}" `
+    + `fill="${fill}" stroke="${EDGE}" stroke-width="0.5"/>`;
+  if (!color) return `<path d="${body}" fill="url(#cylg)" stroke="${EDGE}" stroke-width="0.5"/>` + cap(TOPF);
+  return `<path d="${body}" fill="${color}" stroke="${EDGE}" stroke-width="0.5"/>` + _cylShade(cx, rx, yt, yb, ry)
+    + cap(_mix(color, "#ffffff", 0.35));
+}
+
+/** Flat-colored drum shading without a per-color gradient def (a new <defs>
+entry would change every artifact's bytes): a dark pass over the right
+~40% of the body, the same falloff cylg bakes into light solids. */
+function _cylShade(cx: number, rx: number, yt: number, yb: number, ry: number): string {
+  const x0 = cx + 0.2 * rx;
+  const yb0 = yb + ry * Math.sqrt(1 - 0.04);
+  return `<path d="M ${pyf(x0, 1)} ${pyf(yt, 1)} L ${pyf(x0, 1)} ${pyf(yb0, 1)} `
+    + `A ${pyf(rx, 1)} ${pyf(ry, 1)} 0 0 0 ${pyf(cx + rx, 1)} ${pyf(yb, 1)} L ${pyf(cx + rx, 1)} ${pyf(yt, 1)} Z" `
+    + `fill="#000000" opacity="0.2"/>`;
+}
+
+/** Linear blend of two #rrggbb colors, t = share of b. */
+function _mix(a: string, b: string, t: number): string {
+  const p = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+  return "#" + [0, 1, 2].map(i => Math.round(p(a, i) * (1 - t) + p(b, i) * t)
+    .toString(16).padStart(2, "0")).join("");
+}
+
+// person: a 3D figure from rounded solids in the cylinder's shading — legs,
+// torso, arms (shoulders run screen-horizontal, facing the viewer), and a
+// shaded sphere head. Anchored at the ground point (X, Y) in screen px;
+// fixed px size (same footprint as the old billboard: head top Y-63.5).
+export function person(X: number, Y: number, holding = false, shirt: string | null = null): string {
+  // shirt (torso, sleeves, yoke) in the A1 accent sets people apart from the
+  // grey solids — every other theme color either vanishes on its own ground
+  // (blueprint A2 grey, azure A3 white, azure UI blue) or reads as hardware
+  const c = shirt ?? A1;
+  const g: string[] = [];
+  for (const dx of [-3.6, 3.6]) g.push(_pxCyl(X + dx, Y, 3.2, 0, 22));          // legs
+  g.push(_pxCyl(X - 11.4, Y - 1, 2.4, 25, 43, c));                              // arms (right
+  g.push(_pxCyl(X + 11.4, Y - 1, 2.4, holding ? 32 : 25, 43, c));               // stops at the elbow when holding)
+  g.push(_pxCyl(X, Y - 1, 8, 20, 45, c));                                       // torso
+  // shoulder yoke: one rounded mass over the torso top and both arm tops,
+  // so arms read as attached limbs, not separate posts
+  g.push(`<ellipse cx="${pyf(X, 1)}" cy="${pyf(Y - 44.5, 1)}" rx="13.8" ry="5.2" `
+    + `fill="${c}" stroke="${EDGE}" stroke-width="0.5"/>`);
+  g.push(`<path d="M ${pyf(X + 2.8, 1)} ${pyf(Y - 49.6, 1)} A 13.8 5.2 0 0 1 ${pyf(X + 2.8, 1)} ${pyf(Y - 39.4, 1)} Z" fill="#000000" opacity="0.2"/>`);
+  g.push(`<ellipse cx="${pyf(X - 1.5, 1)}" cy="${pyf(Y - 46, 1)}" rx="9" ry="2.6" fill="${_mix(c, "#ffffff", 0.35)}" opacity="0.9"/>`);
+  g.push(_pxCyl(X, Y - 1, 2.6, 46, 49));                                        // neck
+  const hy = Y - 56;                                                            // head
+  g.push(`<circle cx="${pyf(X, 1)}" cy="${pyf(hy, 1)}" r="7.5" fill="url(#cylg)" stroke="${EDGE}" stroke-width="0.5"/>`);
+  g.push(`<ellipse cx="${pyf(X - 2.4, 1)}" cy="${pyf(hy - 2.6, 1)}" rx="3" ry="2.2" fill="${TOPF}" opacity="0.85"/>`);
+  return g.join("");
 }
 
 // person holding a phone out (billboard, like the reference device-holders)
 export function personDevice(X: number, Y: number): string {
-  return person(X, Y)
-    + `<path d="M ${pyf(X + 9, 1)} ${pyf(Y - 42, 1)} L ${pyf(X + 23, 1)} ${pyf(Y - 33, 1)}" stroke="${INK}" `
-    + `stroke-width="5" stroke-linecap="round" fill="none"/>`
-    + `<rect x="${pyf(X + 20, 1)}" y="${pyf(Y - 50, 1)}" width="9.5" height="15.5" rx="1.5" `
-    + `fill="${SCR}" stroke="${BEZ}" stroke-width="1.6"/>`;
+  // forearm from the elbow out to the hand, as a shaded bar (outline pass, then body)
+  const fa = `M ${pyf(X + 11.4, 1)} ${pyf(Y - 33, 1)} L ${pyf(X + 23, 1)} ${pyf(Y - 37, 1)}`;
+  return person(X, Y, true)
+    + `<path d="${fa}" stroke="${EDGE}" stroke-width="5.6" stroke-linecap="round" fill="none"/>`
+    + `<path d="${fa}" stroke="${A1}" stroke-width="4.6" stroke-linecap="round" fill="none"/>`
+    + `<rect x="${pyf(X + 19.5, 1)}" y="${pyf(Y - 50.5, 1)}" width="10.5" height="16.5" rx="2" fill="${PH}" stroke="${EDGE}" stroke-width="0.8"/>`
+    + `<rect x="${pyf(X + 21, 1)}" y="${pyf(Y - 49, 1)}" width="7.5" height="13" rx="0.8" fill="${SCR}"/>`
+    + `<rect x="${pyf(X + 21, 1)}" y="${pyf(Y - 49, 1)}" width="7.5" height="3" fill="${UI}"/>`;
 }
 
+/** Point on an upright-or-tilted planar face given by its bottom edge
+(x0..x0+w at y = yb, z = zb) and top edge (y = yt, z = zt): u runs 0..1
+along the width, v 0..1 from the TOP down — screen-UI coordinates, so a
+generic UI can be laid out once and projected onto any device face. */
+function _facePt(x0: number, w: number, yb: number, zb: number, yt: number, zt: number,
+  u: number, v: number): Pt {
+  return iso(x0 + u * w, yt + v * (yb - yt), zt - v * (zt - zb));
+}
+function _faceRect(f: (u: number, v: number) => Pt, u0: number, v0: number, u1: number, v1: number,
+  fill: string, extra: Attrs = {}): string {
+  return poly([f(u0, v0), f(u1, v0), f(u1, v1), f(u0, v1)], { fill, ...extra });
+}
+
+/** Generic desktop-app UI (window chrome, sidebar, text rows, one accent
+card) inside a screen face — a recognizable "app" at any size, no product. */
+function _desktopUI(f: (u: number, v: number) => Pt): string {
+  const g = [_faceRect(f, 0, 0, 1, 0.13, BBAR)];
+  for (let i = 0; i < 3; i++) {
+    const [Dx, Dy] = f(0.05 + i * 0.05, 0.065);
+    g.push(`<circle cx="${pyf(Dx, 1)}" cy="${pyf(Dy, 1)}" r="1.5" fill="${SCR}"/>`);
+  }
+  g.push(_faceRect(f, 0.04, 0.2, 0.24, 0.92, BLINE));
+  for (const [v, u1] of [[0.22, 0.92], [0.34, 0.78], [0.46, 0.86]] as Pt[]) {
+    g.push(_faceRect(f, 0.3, v, u1, v + 0.06, BLINE));
+  }
+  g.push(_faceRect(f, 0.3, 0.6, 0.6, 0.9, UI));
+  g.push(_faceRect(f, 0.64, 0.6, 0.94, 0.9, BLINE));
+  return g.join("");
+}
+
+/** Generic phone home screen: status strip, 2x3 accent/neutral app tiles,
+home indicator. */
+function _phoneUI(f: (u: number, v: number) => Pt): string {
+  const g = [_faceRect(f, 0, 0, 1, 0.07, UI)];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
+    const u0 = 0.12 + c * 0.42, v0 = 0.15 + r * 0.23;
+    g.push(_faceRect(f, u0, v0, u0 + 0.34, v0 + 0.16, (r + c) % 2 ? BLINE : UI));
+  }
+  g.push(_faceRect(f, 0.32, 0.9, 0.68, 0.93, BBAR));
+  return g.join("");
+}
+
+// laptop: keyboard base + a full-width lid tilted back from the hinge; the
+// lit panel fills the lid inside a thin bezel and carries a generic app UI
 export function laptop(x: number, y: number, kw: Kw = {}): string {
   const { w = 0.95, d = 0.60, hb = 0.07, hs = 0.64 } = kw;
   const g: string[] = [];
@@ -561,29 +863,46 @@ export function laptop(x: number, y: number, kw: Kw = {}): string {
   g.push(poly(se, { fill: SEF, stroke: EDGE, stroke_width: 0.5 }));
   g.push(poly(zrect(x, y, x + w, y + d, hb), { fill: TOPF, stroke: EDGE, stroke_width: 0.5 }));
   g.push(poly(zrect(x + 0.08, y + 0.10, x + w - 0.08, y + d - 0.12, hb), { fill: KEYS }));
-  const scr = [iso(x + 0.03, y + 0.05, hb), iso(x + w - 0.03, y + 0.05, hb),
-    iso(x + w - 0.03, y - 0.10, hb + hs), iso(x + 0.03, y - 0.10, hb + hs)];
-  g.push(poly(scr, { fill: BEZ, stroke: EDGE, stroke_width: 0.5 }));
-  g.push(poly(inset(scr, 0.13), { fill: SCR }));
+  // lid hinged on the base's back edge, full base width
+  const lid = (u: number, v: number) => _facePt(x, w, y + 0.05, hb, y - 0.10, hb + hs, u, v);
+  g.push(poly([lid(0, 1), lid(1, 1), lid(1, 0), lid(0, 0)], { fill: BEZ, stroke: EDGE, stroke_width: 0.5 }));
+  const bu = 0.035, bt = 0.05, bb = 0.08;          // bezel: sides, top, bottom (chin)
+  const scr = (u: number, v: number) => lid(bu + u * (1 - 2 * bu), bt + v * (1 - bt - bb));
+  g.push(_faceRect(scr, 0, 0, 1, 1, SCR));
+  g.push(_desktopUI(scr));
+  return g.join("");
+}
+
+// smartphone: black slab body, screen on the SW face inside a thin bezel,
+// generic home-screen UI
+export function phone(x: number, y: number, kw: Kw = {}): string {
+  const { w = 0.34, d = 0.10, h = 0.72 } = kw;
+  const g: string[] = [];
+  const sw = [iso(x, y + d, h), iso(x + w, y + d, h), iso(x + w, y + d, 0), iso(x, y + d, 0)];
+  const se = [iso(x + w, y, h), iso(x + w, y + d, h), iso(x + w, y + d, 0), iso(x + w, y, 0)];
+  // EDGE hairline = the metal frame: without it the near-black body
+  // dissolves into the dark blueprint ground
+  g.push(poly(se, { fill: PHS, stroke: EDGE, stroke_width: 0.8 }));
+  g.push(poly(sw, { fill: PH, stroke: EDGE, stroke_width: 0.8 }));
+  g.push(poly(zrect(x, y, x + w, y + d, h), { fill: PHT, stroke: EDGE, stroke_width: 0.8 }));
+  const face = (u: number, v: number) => _facePt(x, w, y + d, 0, y + d, h, u, v);
+  const scr = (u: number, v: number) => face(0.09 + u * 0.82, 0.06 + v * 0.88);
+  g.push(_faceRect(scr, 0, 0, 1, 1, SCR));
+  g.push(_phoneUI(scr));
   return g.join("");
 }
 
 // thin upright slab with screen on the SW face; z0 lifts it (monitor panels)
 export function screenSlab(x: number, y: number, kw: Kw = {}): string {
-  const { w = 0.34, d = 0.10, h = 0.72, z0 = 0.0, it = 0.16 } = kw;
+  const { w = 0.34, d = 0.10, h = 0.72, z0 = 0.0, it = 0.16, bare = false } = kw;
   const g: string[] = [];
   const sw = [iso(x, y + d, z0 + h), iso(x + w, y + d, z0 + h), iso(x + w, y + d, z0), iso(x, y + d, z0)];
   const se = [iso(x + w, y, z0 + h), iso(x + w, y + d, z0 + h), iso(x + w, y + d, z0), iso(x + w, y, z0)];
   g.push(poly(se, { fill: SEF, stroke: EDGE, stroke_width: 0.5 }));
   g.push(poly(sw, { fill: BEZ, stroke: EDGE, stroke_width: 0.5 }));
   g.push(poly(zrect(x, y, x + w, y + d, z0 + h), { fill: TOPF, stroke: EDGE, stroke_width: 0.5 }));
-  g.push(poly(inset(sw, it), { fill: SCR }));
+  if (!bare) g.push(poly(inset(sw, it), { fill: SCR }));   // bare: caller lays its own screen
   return g.join("");
-}
-
-export function phone(x: number, y: number, kw: Kw = {}): string {
-  const { w = 0.34, d = 0.10, h = 0.72 } = kw;
-  return screenSlab(x, y, { w, d, h });
 }
 
 // upright browser-window billboard: bezel slab + title bar with dots + page lines
@@ -638,8 +957,15 @@ export function padlock(x: number, y: number, kw: Kw = {}): string {
 }
 
 export function monitor(x: number, y: number): string {
-  // screen, neck, and foot share one iso center axis (u = x-y constant)
-  const g = [screenSlab(x + 0.06, y + 0.16, { w: 1.16, d: 0.08, h: 0.78, z0: 0.34, it: 0.12 })];
+  // screen, neck, and foot share one iso center axis (u = x-y constant);
+  // the panel gets the laptop's thin bezel and generic desktop UI
+  const px = x + 0.06, py = y + 0.16, pw = 1.16, pd = 0.08, ph = 0.78, pz = 0.34;
+  const g = [screenSlab(px, py, { w: pw, d: pd, h: ph, z0: pz, bare: true })];
+  const face = (u: number, v: number) => _facePt(px, pw, py + pd, pz, py + pd, pz + ph, u, v);
+  const bu = 0.03, bt = 0.05, bb = 0.07;
+  const scr = (u: number, v: number) => face(bu + u * (1 - 2 * bu), bt + v * (1 - bt - bb));
+  g.push(_faceRect(scr, 0, 0, 1, 1, SCR));
+  g.push(_desktopUI(scr));
   g.push(box(x + 0.67, y + 0.23, { rim: EDGE, s: 0.22, h: 0.36, with_plate: false }));
   g.push(box(x + 0.75, y + 0.31, { rim: EDGE, s: 0.5, h: 0.06, with_plate: false }));
   return g.join("");
@@ -984,12 +1310,14 @@ function _wallBody(x: number, y: number, s: number, kw: Kw): Pt[] {
 
 /** users' body for chip snapping: the person + laptop + phone ensemble it
 actually draws (offsets mirror users()) — the footprint box is mostly the
-empty plate around them. The person is a screen-space billboard: head circle
-(r 7.5, top at anchor−63.5) over an anchor±11 torso. */
+empty plate around them. The person is fixed-px solids: head circle (r 7.5,
+top at anchor−63.5), shoulder yoke + arms out to anchor±14.3, legs ending
+at the anchor+2.3 ellipse bottom. */
 function _usersBody(x: number, y: number, _s: number, _kw: Kw): Pt[] {
   const [Xp, Yp] = iso(x + 0.40, y + 0.40);
   const pts: Pt[] = [[Xp - 7.5, Yp - 63.5], [Xp + 7.5, Yp - 63.5],
-    [Xp - 11, Yp - 51], [Xp + 11, Yp - 51], [Xp - 11, Yp], [Xp + 11, Yp]];
+    [Xp - 14.3, Yp - 47], [Xp + 14.3, Yp - 47], [Xp - 14.3, Yp - 24], [Xp + 14.3, Yp - 24],
+    [Xp - 7.5, Yp + 2.3], [Xp + 7.5, Yp + 2.3]];
   const px_ = x + 1.02, py_ = y + 0.16;   // phone slab 0.34 x 0.10 x 0.72
   for (const [gx, gy] of [[px_, py_], [px_ + 0.34, py_],
     [px_ + 0.34, py_ + 0.10], [px_, py_ + 0.10]] as Pt[])
@@ -998,7 +1326,7 @@ function _usersBody(x: number, y: number, _s: number, _kw: Kw): Pt[] {
   for (const [gx, gy] of [[lx, ly], [lx + 0.95, ly],
     [lx + 0.95, ly + 0.60], [lx, ly + 0.60]] as Pt[])
     for (const z of [0, 0.07]) pts.push(iso(gx, gy, z));
-  pts.push(iso(lx + 0.03, ly - 0.10, 0.71), iso(lx + 0.92, ly - 0.10, 0.71));
+  pts.push(iso(lx, ly - 0.10, 0.71), iso(lx + 0.95, ly - 0.10, 0.71));   // lid top, full width
   return pts;
 }
 
@@ -1013,6 +1341,24 @@ Object.assign(panel,    { defH: 0.12 });
 Object.assign(wall,     { defH: 1.0, body: _wallBody });
 Object.assign(queue,    { defH: 0.5 });
 Object.assign(store,    { defH: 0.84 });
+// layer count changes tiers' height, so hull/body derive it from kw rather
+// than a fixed defH (defH stays the 3-layer default for anything else)
+function _tiersBody(x: number, y: number, s: number, kw: Kw): Pt[] {
+  const h = _tiersH(kw);
+  return [iso(x, y, h), iso(x + s, y, h), iso(x + s, y + s, h), iso(x, y + s, h),
+    iso(x, y), iso(x + s, y), iso(x + s, y + s), iso(x, y + s)];
+}
+function _tiersHull(x: number, y: number, s: number, kw: Kw): Pt[] {
+  const m = PLATE_M;
+  return _hull([..._tiersBody(x, y, s, kw), iso(x - m, y - m), iso(x + s + m, y - m),
+    iso(x + s + m, y + s + m), iso(x - m, y + s + m)]);
+}
+Object.assign(tiers,     { defH: 0.82, hull: _tiersHull, body: _tiersBody });
+Object.assign(crate,     { defH: 0.8, body: _crateBody });
+Object.assign(dashboard, { defH: 1.06, body: _dashBody });
+Object.assign(docs,      { defH: 0.27 });
+Object.assign(die,       { defH: 0.26 });
+Object.assign(cluster,   { defH: 0.63 });
 
 function _hull(points: Pt[]): Pt[] {
   const seen = new Set<string>();

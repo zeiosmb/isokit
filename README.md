@@ -72,7 +72,9 @@ node src/cli.ts render examples/minimal.yaml
 
 (`isokit render examples/minimal.yaml` once the package is linked.) The full
 format contract — every key, enum, the layout-derivation order, and the
-complete error table — is [SPEC.md](SPEC.md).
+complete error table — is [SPEC.md](SPEC.md). Worked examples live in
+`examples/`: `minimal.yaml`, `hybrid.yaml` (two estates), `pipeline.yaml`
+(a data/analytics pipeline), and `rag.yaml` (a RAG assistant).
 
 ## Authoring with AI
 
@@ -139,7 +141,7 @@ reproduces the plain render byte-for-byte.
 
 ## Layout vocabulary
 
-Shapes: `box` (service cube with face glyph), `cyl` (database drum with curved label), `rack`, `building`, `wall` (brick firewall), `queue`, `store` (layered blob storage), `slab`, `panel`, `padlock`, `users`, plus device billboards (`laptop`, `monitor`, `phone`, `browser`, `person`). Grouping: translucent `plane()` sheets (optionally raised on posts with a `z` argument), two-tone ground estates (`grid({seam})`), plane-projected labels. Themes: `blueprint` (dark navy) and `azure` (marketing blues); `setTheme()` swaps every token.
+Shapes: `box` (service cube with face glyph), `cyl` (database drum with curved label), `rack`, `building`, `wall` (brick firewall), `queue`, `store` (layered blob storage), `slab`, `panel`, `padlock`, `users`, plus device billboards (`laptop`, `monitor`, `phone`, `browser`, `person`), and general-purpose primitives for pipeline, AI, and CI/CD diagrams: `tiers` (medallion lake, environments), `crate` (artifacts, container images), `dashboard` (BI, monitoring), `docs` (document corpora), `die` (models, GPUs), `cluster` (worker pools). Glyphs for `box`/`slab` faces (and `tiers`/`die` tops) cover roles without their own outline — gateway, app, identity, key, function, document, shield, gear, branch, chart, eye, bolt, sparkle, funnel, vector. Grouping: translucent `plane()` sheets (optionally raised on posts with a `z` argument), two-tone ground estates (`grid({seam})`), plane-projected labels. Themes: `blueprint` (dark navy) and `azure` (marketing blues); `setTheme()` swaps every token.
 
 The full grammar — projection math, face shears, shape anatomy, and every hard-won rule — lives in [STYLE.md](STYLE.md). Read it before writing or modifying a layout; corrections get ratcheted into it (and into enforcement code where possible), never applied as one-offs.
 
@@ -161,7 +163,7 @@ Golden policy: the goldens' job is to make every rendering change *deliberate*, 
 | --- | --- | --- |
 | `layouts/azure_lob.ts` | Azure Isometric.svg | Gold-standard exemplar, Blueprint theme |
 | `layouts/hybrid_onprem_azure.ts` | Hybrid OnPrem Azure.svg | Azure theme, on-prem estate via two-tone ground |
-| `layouts/components.ts` | Isometric Components.svg | The full shape vocabulary on plates |
+| `layouts/components.ts` | Isometric Components.svg | The full shape and glyph vocabulary on plates |
 | `layouts/collision_gauntlet.ts` | Collision Gauntlet.svg | Every label tuned steps inside the collision-check boundary — regression fixture for the check's geometry |
 | `layouts/glossary.ts` | Diagram Glossary.svg | Every part of a diagram, named and pointed at (uses direct `chip()`/`legend()` for non-unit entries) |
 | `layouts/chip_scale.ts` | Chip Scale Demo.svg | Chip numbers 0–9999: pill growth, tip alignment, legend column alignment — regression fixture |

@@ -3,12 +3,13 @@ mirroring the SlideModel components sheet. Blueprint theme. */
 import { configure, iso, plane, planeLabel, grid, svgOpen,
   flow, plate, box, slab, panel, cyl, rack, building, monitor,
   laptop, phone, personDevice, browser, padlock,
-  wall, queue, store, users, GLYPHS, INK, INK2, A1, A2, A3, MONOQ } from "../src/isokit.ts";
+  wall, queue, store, users, tiers, crate, dashboard, docs, die, cluster,
+  GLYPHS, INK, INK2, A1, A2, A3, MONOQ } from "../src/isokit.ts";
 import { out, write } from "../src/io.ts";
 
 configure(46, 720, 150);
-const S = svgOpen(1400, 1050);
-S.push(grid({ x0: -8, y0: -8, x1: 24, y1: 26, clip_w: 1400, clip_h: 1050 }));
+const S = svgOpen(1400, 1480);
+S.push(grid({ x0: -8, y0: -8, x1: 36, y1: 38, clip_w: 1400, clip_h: 1480 }));
 
 function pos(c: number, r: number): [number, number] {
   const u = c * 6.0 - 9.0, v = r * 6.2 + 2.0;
@@ -60,6 +61,24 @@ slot(3, 4, (x, y) => plate(x, y)
   + plane(x - 0.15, y - 0.15, x + 1.55, y + 1.55, 0.85),                               "RAISED PLANE");
 
 slot(0, 5, (x, y) => store(x, y, { rim: A2 }),                                         "BLOB STORE");
+// general-purpose primitives for pipeline / AI / CI diagrams
+slot(1, 5, (x, y) => tiers(x, y, { rims: ["#b5763a", "#b8c2cf", A3] }),                 "TIERS");
+slot(2, 5, (x, y) => crate(x, y, { rim: A2 }),                                         "CRATE");
+slot(3, 5, (x, y) => dashboard(x, y, { rim: A1 }),                                     "DASHBOARD");
+
+slot(0, 6, (x, y) => docs(x, y, { rim: A3 }),                                          "DOC STACK");
+slot(1, 6, (x, y) => die(x, y, { rim: A1, glyph: GLYPHS["sparkle"] }),                 "COMPUTE DIE");
+slot(2, 6, (x, y) => cluster(x, y, { rim: A3 }),                                       "CLUSTER");
+slot(3, 6, (x, y) => box(x, y, { rim: A2, glyph: GLYPHS["gear"] }),                    "TOOLS");
+
+slot(0, 7, (x, y) => box(x, y, { rim: A3, glyph: GLYPHS["branch"] }),                  "REPO");
+slot(1, 7, (x, y) => box(x, y, { rim: A2, glyph: GLYPHS["chart"] }),                   "ANALYTICS");
+slot(2, 7, (x, y) => box(x, y, { rim: A1, glyph: GLYPHS["eye"] }),                     "OBSERVE");
+slot(3, 7, (x, y) => box(x, y, { rim: A2, glyph: GLYPHS["bolt"] }),                    "EVENTS");
+
+slot(0, 8, (x, y) => box(x, y, { rim: A3, glyph: GLYPHS["sparkle"] }),                 "AGENT");
+slot(1, 8, (x, y) => box(x, y, { rim: A2, glyph: GLYPHS["funnel"] }),                  "FILTER / ETL");
+slot(2, 8, (x, y) => box(x, y, { rim: A2, glyph: GLYPHS["vector"] }),                  "EMBEDDINGS");
 
 for (const [, body] of SHEET.slice().sort((a, b) => a[0] - b[0])) {   // painter's order
   S.push(body);

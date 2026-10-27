@@ -1,0 +1,47 @@
+# examples/pipeline.yaml — a data/analytics pipeline from the general-purpose
+# primitives (docs, cluster, tiers, dashboard), a glyph-on-box stand-in for a
+# role with no dedicated shape (bolt = event stream), and a labelled drum.
+# Placement pins each stage as a column, offset so every flow runs straight:
+# a left-to-right pipeline reads as a staircase down the iso diagonal.
+isokit: 1
+title: "ANALYTICS PIPELINE"
+theme: azure
+
+units:
+  files: { shape: docs, accent: 3 }
+  orders: { shape: cyl, label: PG, accent: 3 }
+  events: { shape: box, glyph: bolt, accent: 2 }
+  spark: { shape: cluster, accent: 2 }
+  lake: { shape: tiers, accent: 2 }
+  dw: { shape: cyl, label: DW, accent: 2 }
+  bi: { shape: dashboard, accent: 1 }
+
+groups:
+  sources: { label: SOURCES, units: [files, orders] }
+  ingest: { label: INGEST, units: [events, spark] }
+  lakehouse: { label: LAKEHOUSE, units: [lake, dw] }
+  reporting: { label: BI, units: [bi] }
+
+flows:
+  - { from: files, to: events }
+  - { from: orders, to: spark, style: data }
+  - { from: events, to: spark }
+  - { from: spark, to: lake }
+  - { from: lake, to: dw, style: data }
+  - { from: dw, to: bi }
+
+annotations:
+  files: { title: Landing files, note: CSV and JSON drops from partners. }
+  orders: { title: Orders DB, note: Postgres system of record. }
+  events: { title: Event stream, note: change events and clickstream. }
+  spark: { title: Spark pool, note: autoscaling cluster cleans and joins. }
+  lake: { title: Medallion lake, note: "bronze raw, silver conformed, gold curated." }
+  dw: { title: Warehouse, note: serves gold tables over SQL. }
+  bi: { title: Dashboards, note: reports on the warehouse. }
+
+placement:
+  groups:
+    sources: { origin: [1, 1], cols: 1 }
+    ingest: { origin: [5, 1], cols: 1 }
+    lakehouse: { origin: [9, 4], cols: 1 }
+    reporting: { origin: [13, 7] }

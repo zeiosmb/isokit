@@ -21,9 +21,10 @@
       "additionalProperties": {
         "type": "object", "required": ["shape"], "additionalProperties": false,
         "properties": {
-          "shape": { "enum": ["box", "slab", "panel", "cyl", "rack", "building", "wall", "queue", "store", "users", "laptop", "phone", "browser", "padlock", "monitor"] },
-          "glyph": { "enum": ["gw", "app", "entra", "kv", "fn", "doc", "shield"] },
-          "accent": { "enum": [1, 2, 3] }
+          "shape": { "enum": ["box", "slab", "panel", "cyl", "rack", "building", "wall", "queue", "store", "users", "laptop", "phone", "browser", "padlock", "monitor", "tiers", "crate", "dashboard", "docs", "die", "cluster"] },
+          "glyph": { "enum": ["gw", "app", "entra", "kv", "fn", "doc", "shield", "gear", "branch", "chart", "eye", "bolt", "sparkle", "funnel", "vector"] },
+          "accent": { "enum": [1, 2, 3] },
+          "label": { "type": "string", "maxLength": 3 }
         }
       }
     },

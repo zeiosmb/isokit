@@ -123,6 +123,26 @@ expectErr("origin off grid", BASE + "units:\n  a: { shape: box }\ngroups:\n  g: 
   "pin-off-grid");
 expectErr("units empty", BASE + "units: {}\n", "units-empty");
 
+// v1 minor addition: pipeline / AI / CI primitives, their glyphs, and the
+// cyl-only drum `label`
+const ONE = (unit: string) => BASE + `units:\n  a: ${unit}\ngroups:\n  g: { label: L, units: [a] }\n`;
+for (const shape of ["tiers", "crate", "dashboard", "docs", "die", "cluster"]) {
+  ok(`shape ${shape} validates`, validate(parseYaml(ONE(`{ shape: ${shape} }`))).units.get("a")!.shape === shape);
+}
+for (const glyph of ["gear", "branch", "chart", "eye", "bolt", "sparkle", "funnel", "vector"]) {
+  ok(`glyph ${glyph} validates`, validate(parseYaml(ONE(`{ shape: box, glyph: ${glyph} }`))).units.get("a")!.glyph === glyph);
+}
+ok("glyph on tiers", validate(parseYaml(ONE("{ shape: tiers, glyph: sparkle }"))).units.get("a")!.glyph === "sparkle");
+ok("glyph on die", validate(parseYaml(ONE("{ shape: die, glyph: sparkle }"))).units.get("a")!.glyph === "sparkle");
+expectErr("glyph on crate", ONE("{ shape: crate, glyph: gear }"), "glyph-unsupported-shape");
+const CYL_LABEL = ONE("{ shape: cyl, label: VEC }");
+ok("cyl label parsed", validate(parseYaml(CYL_LABEL)).units.get("a")!.label === "VEC");
+expectErr("label on box", ONE("{ shape: box, label: VEC }"), "label-unsupported-shape");
+const LABEL_LONG = ONE("{ shape: cyl, label: OLTP }");   // 4 chars: first one wraps out of sight
+expectErr("label too long", LABEL_LONG, "label-too-long");
+const LABEL_NOT_STR = ONE("{ shape: cyl, label: 42 }");
+expectErr("label not a string", LABEL_NOT_STR, "type-mismatch");
+
 // STRUCTURAL fixtures: [name, yamlText, validAgainstValidator]
 // (referential failures — unknown names, exclusivity — legally PASS the
 // JSON Schema; keep them out of this list)
@@ -135,6 +155,10 @@ const STRUCTURAL: [string, string, boolean][] = [
   ["version wrong", VERSION_WRONG, false],
   ["origin not pair", ORIGIN_NOT_PAIR, false],
   ["group empty", GROUP_EMPTY, false],
+  ["new shape + glyph", ONE("{ shape: tiers, glyph: sparkle, accent: 2 }"), true],
+  ["cyl label", CYL_LABEL, true],
+  ["label too long", LABEL_LONG, false],
+  ["label not a string", LABEL_NOT_STR, false],
 ];
 const schema = JSON.parse(fs.readFileSync(new URL("../schema/isokit-1.json", import.meta.url), "utf8"));
 for (const [name, yaml, valid] of STRUCTURAL) {

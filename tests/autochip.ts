@@ -4,6 +4,7 @@
 // a unit hull, flow route, label quad, another chip, or the canvas edge.
 // Part B: annotate() without an approach point picks one automatically.
 import { setTheme, configure, svgOpen, resetUnits, unit, box, building, wall, users, cyl,
+  crate, dashboard,
   flow, planeLabel, chip, checkChips, annotate, annotations, iso,
   A2, type Pt } from "../src/isokit.ts";
 
@@ -172,16 +173,17 @@ function distToPoly(p: Pt, poly: Pt[]): number {
   // ensemble body points: shape draws at dx=4.3, dy=4.3 (1.4 centered in 2x2)
   const dx = 4.3, dy = 4.3;
   const pts: Pt[] = [];
-  const [Xp, Yp] = iso(dx + 0.40, dy + 0.40);   // person billboard: head + torso
+  const [Xp, Yp] = iso(dx + 0.40, dy + 0.40);   // 3D person: head, shoulder yoke + arms, legs
   pts.push([Xp - 7.5, Yp - 63.5], [Xp + 7.5, Yp - 63.5],
-    [Xp - 11, Yp - 51], [Xp + 11, Yp - 51], [Xp - 11, Yp], [Xp + 11, Yp]);
+    [Xp - 14.3, Yp - 47], [Xp + 14.3, Yp - 47], [Xp - 14.3, Yp - 24], [Xp + 14.3, Yp - 24],
+    [Xp - 7.5, Yp + 2.3], [Xp + 7.5, Yp + 2.3]);
   const px_ = dx + 1.02, py_ = dy + 0.16;       // phone slab 0.34 x 0.10 x 0.72
   for (const [gx, gy] of [[px_, py_], [px_ + 0.34, py_], [px_ + 0.34, py_ + 0.10], [px_, py_ + 0.10]] as Pt[])
     for (const z of [0, 0.72]) pts.push(iso(gx, gy, z));
   const lx = dx + 0.16, ly = dy + 0.70;         // laptop base 0.95 x 0.60 + screen
   for (const [gx, gy] of [[lx, ly], [lx + 0.95, ly], [lx + 0.95, ly + 0.60], [lx, ly + 0.60]] as Pt[])
     for (const z of [0, 0.07]) pts.push(iso(gx, gy, z));
-  pts.push(iso(lx + 0.03, ly - 0.10, 0.71), iso(lx + 0.92, ly - 0.10, 0.71));
+  pts.push(iso(lx, ly - 0.10, 0.71), iso(lx + 0.95, ly - 0.10, 0.71));
   // convex hull (monotone chain) so distToPoly sees the ensemble outline
   const sorted = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const cross = (o: Pt, a: Pt, b: Pt): number =>
@@ -199,6 +201,57 @@ function distToPoly(p: Pt, poly: Pt[]): number {
   check("tip hugs the person/laptop ensemble, not the footprint box",
     d > 3.5 && d < 6.5, `dist=${d.toFixed(1)} tip=(${tx},${ty})`);
   ok("ensemble-snapped chip survives checkChips", checkChips);
+}
+
+// convex hull (monotone chain) of loose points, for distToPoly
+function convexHull(pts: Pt[]): Pt[] {
+  const sorted = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: Pt, a: Pt, b: Pt): number =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (arr: Pt[]): Pt[] => {
+    const h: Pt[] = [];
+    for (const p of arr) {
+      while (h.length > 1 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();
+      h.push(p);
+    }
+    return h;
+  };
+  return [...half(sorted).slice(0, -1), ...half(sorted.reverse()).slice(0, -1)];
+}
+
+// A10) inset primitives: crate draws a 1.4 x 0.84 container centered in its
+// footprint, dashboard a thin upright screen on a narrow foot — auto chips
+// must stop `gap` px off what is drawn, not the 1.4 footprint box
+{
+  svgOpen(1400, 700); resetUnits();
+  unit("c", crate, 8, 8);
+  annotate("c", "Crate", "an inset container.");
+  const [tx, ty] = tipOf(annotations({ footer: null }));
+  const x = 8.3, by = 8.3 + 0.28, sx = 1.4, sy = 0.84, h = 0.8;   // offsets mirror crate()
+  const body: Pt[] = [];
+  for (const [gx, gy] of [[x, by], [x + sx, by], [x + sx, by + sy], [x, by + sy]] as Pt[])
+    for (const z of [0, h]) body.push(iso(gx, gy, z));
+  const d = distToPoly([tx, ty], convexHull(body));
+  check("tip hugs the container, not the footprint box",
+    d > 3.5 && d < 6.5, `dist=${d.toFixed(1)} tip=(${tx},${ty})`);
+  ok("crate chip survives checkChips", checkChips);
+}
+{
+  svgOpen(1400, 700); resetUnits();
+  unit("d", dashboard, 8, 8);
+  annotate("d", "Dashboard", "a thin upright screen.");
+  const [tx, ty] = tipOf(annotations({ footer: null }));
+  const x = 8.3, y = 8.3, s = 1.4, w = 1.3, dd = 0.09, z0 = 0.14, h = 0.92;   // mirror dashboard()
+  const bx = x + 0.05, sy0 = y + s / 2 - dd / 2;
+  const body: Pt[] = [];
+  for (const [gx, gy] of [[bx, sy0], [bx + w, sy0], [bx + w, sy0 + dd], [bx, sy0 + dd]] as Pt[])
+    body.push(iso(gx, gy, z0 + h));
+  for (const [gx, gy] of [[x + 0.15, y + s / 2 - 0.22], [x + s - 0.15, y + s / 2 - 0.22],
+    [x + s - 0.15, y + s / 2 + 0.22], [x + 0.15, y + s / 2 + 0.22]] as Pt[]) body.push(iso(gx, gy));
+  const d = distToPoly([tx, ty], convexHull(body));
+  check("tip hugs the dashboard screen, not the footprint box",
+    d > 3.5 && d < 6.5, `dist=${d.toFixed(1)} tip=(${tx},${ty})`);
+  ok("dashboard chip survives checkChips", checkChips);
 }
 
 // B1) annotate without an approach point: picks a clear side automatically

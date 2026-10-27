@@ -15,7 +15,7 @@ You are authoring an isokit diagram: an isometric architecture diagram
 topology; you emit the YAML; the isokit renderer does all layout, routing,
 and legend derivation.
 
-This file is self-contained: the full format contract (SPEC.md) and two
+This file is self-contained: the full format contract (SPEC.md) and four
 complete examples follow below. It is generated from the isokit repository
 (https://github.com/zeiosmb/isokit) by \`npm run build:llms\` — do not edit
 it directly.
@@ -40,7 +40,7 @@ it directly.
 6. Never generate base64, data URIs, or SVG yourself — YAML only; the
    renderer owns the drawing.
 
-The format contract follows, then two worked examples.
+The format contract follows, then four worked examples.
 
 ---
 `;
@@ -52,6 +52,10 @@ const body = [
   "```yaml\n" + read("examples/minimal.yaml") + "\n```",
   "\n# Example 2: hybrid (two estates, annotations, a placement override)\n",
   "```yaml\n" + read("examples/hybrid.yaml") + "\n```",
+  "\n# Example 3: data pipeline (pipeline primitives, staircase placement)\n",
+  "```yaml\n" + read("examples/pipeline.yaml") + "\n```",
+  "\n# Example 4: RAG assistant (AI primitives, hub placement)\n",
+  "```yaml\n" + read("examples/rag.yaml") + "\n```",
   "",
 ].join("\n");
 

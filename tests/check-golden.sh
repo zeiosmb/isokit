@@ -8,6 +8,8 @@ rm -rf tests/out && mkdir -p tests/out
 for f in layouts/*.ts; do ISOKIT_OUT="$PWD/tests/out" node "$f"; done
 node src/cli.ts render examples/minimal.yaml -o tests/out/Minimal.svg
 node src/cli.ts render examples/hybrid.yaml -o "tests/out/Hybrid Semantic.svg"
+node src/cli.ts render examples/pipeline.yaml -o "tests/out/Pipeline Semantic.svg"
+node src/cli.ts render examples/rag.yaml -o "tests/out/RAG Semantic.svg"
 fail=0
 for g in tests/golden/*.svg; do
   b="$(basename "$g")"

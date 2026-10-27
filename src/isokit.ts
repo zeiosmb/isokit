@@ -669,21 +669,39 @@ function _dashBody(x: number, y: number, s: number, kw: Kw): Pt[] {
     iso(x + s - 0.15, y + s / 2 + 0.22), iso(x + 0.15, y + s / 2 + 0.22)];
 }
 
-// document stack: fanned sheets, top sheet dog-eared with text lines —
-// corpora, RAG sources, reports, contracts.
-export function docs(x: number, y: number, kw: Kw = {}): string {
-  const { rim, s = 1.4, sheets = 3 } = kw;
-  const sx = 0.92, sy = 1.08, th = 0.05, step = 0.11, dz = 0.1;
-  const g = [plate(x, y, s)];
-  const x0 = x + (s - sx) / 2 + step * (sheets - 1) / 2, y0 = y + (s - sy) / 2 + step * (sheets - 1) / 2;
-  let tx = x0, ty = y0, tz = 0;
-  for (let i = 0; i < sheets - 1; i++) {
-    tx = x0 - i * step; ty = y0 - i * step; tz = i * dz;
-    g.push(_prism(tx, ty, sx, sy, tz, tz + th, EDGE, SWF));
+// document stack: loose paper sheets resting directly on one another, the
+// lower ones fanned (rotated in the ground plane) so their white corners
+// peek out; the top sheet is square to the grid, dog-eared, with text lines
+// — corpora, RAG sources, reports, contracts.
+const _DOC_SX = 0.92, _DOC_SY = 1.08, _DOC_TH = 0.05;
+const _DOC_FAN = [0.2, -0.16, 0.09, -0.05];   // radians, bottom sheet first
+
+/** One paper sheet: a thin prism rotated by `a` about its ground center. */
+function _sheet(cx: number, cy: number, a: number, z0: number, fill: string, rim: string, rw: number): string {
+  const c = Math.cos(a), sn = Math.sin(a), hx = _DOC_SX / 2, hy = _DOC_SY / 2;
+  const P: Pt[] = [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]].map(([u, v]) =>
+    [cx + u * c - v * sn, cy + u * sn + v * c] as Pt);
+  const z1 = z0 + _DOC_TH, g: string[] = [];
+  for (let i = 0; i < 4; i++) {          // side walls whose outward normal faces the viewer (+x+y)
+    const [ax, ay] = P[i], [bx, by] = P[(i + 1) % 4];
+    if ((by - ay) - (bx - ax) <= 0) continue;   // outward normal (dy, -dx); visible when nx + ny > 0
+    g.push(poly([iso(ax, ay, z1), iso(bx, by, z1), iso(bx, by, z0), iso(ax, ay, z0)],
+      { fill: SEF, stroke: EDGE, stroke_width: 0.5 }));
   }
-  // top sheet: right (far +x/-y) corner folded over — cut the face, then lay
-  // the folded flap on top of the sheet
-  tx = x0 - (sheets - 1) * step; ty = y0 - (sheets - 1) * step; tz = (sheets - 1) * dz;
+  g.push(poly(P.map(([px, py]) => iso(px, py, z1)), { fill, stroke: rim, stroke_width: rw }));
+  return g.join("");
+}
+
+export function docs(x: number, y: number, kw: Kw = {}): string {
+  const { rim, s = 1.4, sheets = 4 } = kw;
+  const sx = _DOC_SX, sy = _DOC_SY, th = _DOC_TH;
+  const g = [plate(x, y, s)];
+  const cx = x + s / 2, cy = y + s / 2;
+  for (let i = 0; i < sheets - 1; i++) {
+    g.push(_sheet(cx, cy, _DOC_FAN[i % _DOC_FAN.length], i * th, TOPF, EDGE, 0.8));
+  }
+  // top sheet: square to the grid; far (+x/-y) corner folded over
+  const tx = cx - sx / 2, ty = cy - sy / 2, tz = (sheets - 1) * th;
   const zt = tz + th, f = 0.28;
   g.push(poly([iso(tx, ty + sy, zt), iso(tx + sx, ty + sy, zt), iso(tx + sx, ty + sy, tz), iso(tx, ty + sy, tz)],
     { fill: SWF, stroke: EDGE, stroke_width: 0.5 }));
@@ -1356,7 +1374,7 @@ function _tiersHull(x: number, y: number, s: number, kw: Kw): Pt[] {
 Object.assign(tiers,     { defH: 0.82, hull: _tiersHull, body: _tiersBody });
 Object.assign(crate,     { defH: 0.8, body: _crateBody });
 Object.assign(dashboard, { defH: 1.06, body: _dashBody });
-Object.assign(docs,      { defH: 0.27 });
+Object.assign(docs,      { defH: 0.2 });
 Object.assign(die,       { defH: 0.26 });
 Object.assign(cluster,   { defH: 0.63 });
 
